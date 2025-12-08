@@ -6,6 +6,15 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+interface ExecutiveFeedback {
+  executiveId: string;
+  name: string;
+  score: number;
+  maxScore: number;
+  feedback: string;
+  methodology: string;
+}
+
 interface AIEvaluationResult {
   diagnosisClarity: number;
   financialCoherence: number;
@@ -17,13 +26,25 @@ interface AIEvaluationResult {
     improvements: string[];
     recommendations: string[];
   };
+  executiveFeedback?: {
+    ceo: { score: number; feedback: string };
+    cfo: { score: number; feedback: string };
+    coo: { score: number; feedback: string };
+    board: { score: number; feedback: string };
+  };
+}
+
+export interface EnhancedRoundScore extends RoundScore {
+  executiveFeedback?: ExecutiveFeedback[];
+  methodologyInsights?: string[];
 }
 
 export async function evaluateResponseWithAI(
   response: RoundResponse,
-  cards: DrawnCards
-): Promise<RoundScore> {
-  const prompt = buildEvaluationPrompt(response, cards);
+  cards: DrawnCards,
+  bossResponses?: Record<string, string>
+): Promise<EnhancedRoundScore> {
+  const prompt = buildEvaluationPrompt(response, cards, bossResponses);
   
   try {
     const completion = await openai.chat.completions.create({
@@ -31,8 +52,13 @@ export async function evaluateResponseWithAI(
       messages: [
         {
           role: "system",
-          content: `Você é um avaliador especializado em treinamento executivo e tomada de decisões estratégicas. 
-Sua tarefa é avaliar as respostas de um participante em um jogo de simulação de cenários empresariais.
+          content: `Você é um avaliador especializado em treinamento executivo baseado nas melhores práticas de Harvard Business School, MIT Sloan e Stanford GSB.
+
+Sua avaliação segue frameworks reconhecidos:
+- CEO (Visão Estratégica): Framework de Vantagem Competitiva de Michael Porter
+- CFO (Análise Financeira): Princípios de Valuation e Decision Analysis
+- COO (Execução Operacional): Lean Operations e OKRs
+- Board (Governança): Princípios ESG e Stakeholder Theory
 
 Avalie cada dimensão de 0 a 3 pontos:
 - 0: Resposta ausente, irrelevante ou muito superficial
@@ -81,6 +107,33 @@ Responda APENAS com JSON válido, sem markdown.`
       }
     }
 
+    const executiveFeedback: ExecutiveFeedback[] = [];
+    
+    if (evaluation.executiveFeedback) {
+      const execData = [
+        { id: "ceo", name: "CEO", methodology: "Framework de Porter - Vantagem Competitiva" },
+        { id: "cfo", name: "CFO", methodology: "Análise DCF e Decision Trees" },
+        { id: "coo", name: "COO", methodology: "Lean Operations e OKRs" },
+        { id: "board", name: "Conselho", methodology: "ESG e Stakeholder Theory" },
+      ];
+
+      for (const exec of execData) {
+        const fb = evaluation.executiveFeedback[exec.id as keyof typeof evaluation.executiveFeedback];
+        if (fb) {
+          executiveFeedback.push({
+            executiveId: exec.id,
+            name: exec.name,
+            score: Math.min(3, Math.max(0, fb.score)),
+            maxScore: 3,
+            feedback: fb.feedback,
+            methodology: exec.methodology,
+          });
+        }
+      }
+    }
+
+    const methodologyInsights = generateMethodologyInsights(total, diagnosisClarity, financialCoherence, executionRobustness, storytellingQuality);
+
     return {
       diagnosisClarity,
       financialCoherence,
@@ -88,6 +141,8 @@ Responda APENAS com JSON válido, sem markdown.`
       storytellingQuality,
       total,
       feedback: summaryFeedback.trim(),
+      executiveFeedback: executiveFeedback.length > 0 ? executiveFeedback : undefined,
+      methodologyInsights,
     };
   } catch (error) {
     console.error("AI evaluation failed, using fallback scoring:", error);
@@ -95,7 +150,53 @@ Responda APENAS com JSON válido, sem markdown.`
   }
 }
 
-function buildEvaluationPrompt(response: RoundResponse, cards: DrawnCards): string {
+function generateMethodologyInsights(
+  total: number,
+  diagnosis: number,
+  financial: number,
+  execution: number,
+  storytelling: number
+): string[] {
+  const insights: string[] = [];
+
+  if (diagnosis >= 2) {
+    insights.push("Seu diagnóstico demonstra pensamento sistêmico alinhado com o framework de análise de cenários de Harvard.");
+  } else if (diagnosis === 1) {
+    insights.push("Aprofunde o diagnóstico usando a técnica dos '5 Porquês' para identificar causas raiz.");
+  }
+
+  if (financial >= 2) {
+    insights.push("Sua análise financeira reflete princípios sólidos de valuation e gestão de riscos.");
+  } else if (financial === 1) {
+    insights.push("Considere incorporar análise de sensibilidade (MIT Sloan) para fortalecer projeções.");
+  }
+
+  if (execution >= 2) {
+    insights.push("Seu plano de execução demonstra clareza operacional consistente com metodologias ágeis.");
+  } else if (execution === 1) {
+    insights.push("Defina OKRs mais específicos e mensuráveis para cada iniciativa proposta.");
+  }
+
+  if (storytelling >= 2) {
+    insights.push("Sua narrativa segue a estrutura de comunicação executiva recomendada por Stanford GSB.");
+  } else if (storytelling === 1) {
+    insights.push("Utilize a estrutura 'Situação-Complicação-Resolução' para narrativas mais impactantes.");
+  }
+
+  if (total >= 10) {
+    insights.push("Performance de nível C-Suite. Continue refinando para alcançar excelência consistente.");
+  } else if (total >= 6) {
+    insights.push("Base sólida de gestão. Foque em integrar melhor as diferentes dimensões da análise.");
+  }
+
+  return insights;
+}
+
+function buildEvaluationPrompt(
+  response: RoundResponse, 
+  cards: DrawnCards,
+  bossResponses?: Record<string, string>
+): string {
   let prompt = `## Cenário do Jogo (Cartas Sorteadas)
 
 **Contexto (${cards.context.id}): ${cards.context.name}**
@@ -159,13 +260,26 @@ Desafio: ${cards.storytelling.challenge}
 `;
   }
 
+  if (bossResponses && Object.keys(bossResponses).length > 0) {
+    prompt += `### Respostas às Perguntas dos Executivos (Boss Mode)
+`;
+    for (const [execId, response] of Object.entries(bossResponses)) {
+      const execName = execId === 'ceo' ? 'CEO' : execId === 'cfo' ? 'CFO' : execId === 'coo' ? 'COO' : 'Conselho';
+      prompt += `- Resposta ao ${execName}: ${response}
+`;
+    }
+    prompt += `
+`;
+  }
+
   prompt += `## Avaliação Solicitada
 
-Avalie as respostas considerando:
-1. **diagnosisClarity** (0-3): Clareza na identificação do contexto, riscos e oportunidades. A análise é completa e bem fundamentada?
-2. **financialCoherence** (0-3): Coerência entre decisões estratégicas e indicadores financeiros. Os cenários são realistas?
-3. **executionRobustness** (0-3): Robustez do plano de execução. As iniciativas são acionáveis? A mitigação de riscos é adequada?
-4. **storytellingQuality** (0-3): Qualidade da narrativa executiva. A apresentação é persuasiva e estruturada?
+Avalie as respostas considerando frameworks acadêmicos de referência:
+
+1. **diagnosisClarity** (0-3): Clareza na identificação do contexto, riscos e oportunidades usando análise sistêmica.
+2. **financialCoherence** (0-3): Coerência entre decisões e indicadores, usando princípios de valuation.
+3. **executionRobustness** (0-3): Robustez do plano de execução com OKRs claros e acionáveis.
+4. **storytellingQuality** (0-3): Qualidade da narrativa usando estrutura Situação-Complicação-Resolução.
 
 Responda em JSON com este formato exato:
 {
@@ -178,13 +292,19 @@ Responda em JSON com este formato exato:
     "strengths": ["<ponto forte 1>", "<ponto forte 2>"],
     "improvements": ["<área para melhoria 1>", "<área para melhoria 2>"],
     "recommendations": ["<recomendação 1>", "<recomendação 2>"]
+  },
+  "executiveFeedback": {
+    "ceo": { "score": <0-3>, "feedback": "<feedback do CEO sobre visão estratégica>" },
+    "cfo": { "score": <0-3>, "feedback": "<feedback do CFO sobre aspectos financeiros>" },
+    "coo": { "score": <0-3>, "feedback": "<feedback do COO sobre execução operacional>" },
+    "board": { "score": <0-3>, "feedback": "<feedback do Conselho sobre governança e stakeholders>" }
   }
 }`;
 
   return prompt;
 }
 
-function getFallbackScore(response: RoundResponse): RoundScore {
+function getFallbackScore(response: RoundResponse): EnhancedRoundScore {
   let diagnosisClarity = 0;
   let financialCoherence = 0;
   let executionRobustness = 0;
@@ -226,12 +346,47 @@ function getFallbackScore(response: RoundResponse): RoundScore {
 
   let feedback = "";
   if (total <= 4) {
-    feedback = "Iniciante no cenário. Suas respostas estão no caminho certo, mas podem ser mais detalhadas e estruturadas. Tente ser mais específico em cada etapa e considere como os diferentes elementos do cenário se conectam.";
+    feedback = "Iniciante no cenário. Suas respostas estão no caminho certo, mas podem ser mais detalhadas e estruturadas.";
   } else if (total <= 8) {
-    feedback = "Boa estrutura, precisa refinar decisões. Você demonstra compreensão do cenário e apresenta análises relevantes. Para avançar, aprofunde a conexão entre diagnóstico, decisões e plano de execução. Seu storytelling pode ser mais impactante.";
+    feedback = "Boa estrutura. Você demonstra compreensão do cenário. Aprofunde a conexão entre diagnóstico e execução.";
   } else {
-    feedback = "Nível executivo / consultor bem estruturado. Excelente análise! Você demonstra visão estratégica, coerência financeira e capacidade de comunicar decisões de forma clara e persuasiva. Continue praticando para manter a excelência.";
+    feedback = "Nível executivo. Excelente análise com visão estratégica e capacidade de comunicar decisões de forma clara.";
   }
+
+  const executiveFeedback: ExecutiveFeedback[] = [
+    {
+      executiveId: "ceo",
+      name: "CEO",
+      score: diagnosisClarity,
+      maxScore: 3,
+      feedback: diagnosisClarity >= 2 ? "Visão estratégica sólida." : "Precisa desenvolver mais a visão de longo prazo.",
+      methodology: "Framework de Porter",
+    },
+    {
+      executiveId: "cfo",
+      name: "CFO",
+      score: financialCoherence,
+      maxScore: 3,
+      feedback: financialCoherence >= 2 ? "Análise financeira coerente." : "Fortaleça os indicadores financeiros.",
+      methodology: "Análise DCF",
+    },
+    {
+      executiveId: "coo",
+      name: "COO",
+      score: executionRobustness,
+      maxScore: 3,
+      feedback: executionRobustness >= 2 ? "Plano executável e claro." : "Defina iniciativas mais específicas.",
+      methodology: "OKRs e Lean",
+    },
+    {
+      executiveId: "board",
+      name: "Conselho",
+      score: storytellingQuality,
+      maxScore: 3,
+      feedback: storytellingQuality >= 2 ? "Comunicação adequada para stakeholders." : "Trabalhe a narrativa para o board.",
+      methodology: "Stakeholder Theory",
+    },
+  ];
 
   return {
     diagnosisClarity,
@@ -240,5 +395,7 @@ function getFallbackScore(response: RoundResponse): RoundScore {
     storytellingQuality,
     total,
     feedback,
+    executiveFeedback,
+    methodologyInsights: generateMethodologyInsights(total, diagnosisClarity, financialCoherence, executionRobustness, storytellingQuality),
   };
 }

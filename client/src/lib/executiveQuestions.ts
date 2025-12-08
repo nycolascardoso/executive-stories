@@ -3,9 +3,17 @@ import type { Card, DeckType } from "@shared/schema";
 interface ExecutiveQuestion {
   executiveId: string;
   question: string;
+  context?: string;
 }
 
-const CEO_QUESTIONS: Record<DeckType, string[]> = {
+interface PlayerResponses {
+  diagnostico: string;
+  decisoes: string;
+  execucao: string;
+  storytelling: string;
+}
+
+const CEO_BASE_QUESTIONS: Record<DeckType, string[]> = {
   C: [
     "Como essa análise de contexto fortalece nossa tese de longo prazo?",
     "O que exatamente nos diferencia dos concorrentes nesse cenário?",
@@ -38,7 +46,7 @@ const CEO_QUESTIONS: Record<DeckType, string[]> = {
   ],
 };
 
-const CFO_QUESTIONS: Record<DeckType, string[]> = {
+const CFO_BASE_QUESTIONS: Record<DeckType, string[]> = {
   C: [
     "Qual é o impacto financeiro real desse cenário que você descreveu?",
     "Temos reservas suficientes para absorver os riscos identificados?",
@@ -71,7 +79,7 @@ const CFO_QUESTIONS: Record<DeckType, string[]> = {
   ],
 };
 
-const COO_QUESTIONS: Record<DeckType, string[]> = {
+const COO_BASE_QUESTIONS: Record<DeckType, string[]> = {
   C: [
     "Qual é a capacidade operacional para lidar com esse cenário?",
     "Temos as pessoas certas para executar nesse contexto?",
@@ -104,7 +112,7 @@ const COO_QUESTIONS: Record<DeckType, string[]> = {
   ],
 };
 
-const BOARD_QUESTIONS: Record<DeckType, string[]> = {
+const BOARD_BASE_QUESTIONS: Record<DeckType, string[]> = {
   C: [
     "Como os stakeholders externos perceberão nossa posição nesse contexto?",
     "Estamos cumprindo nosso dever fiduciário ao abordar isso assim?",
@@ -138,21 +146,108 @@ const BOARD_QUESTIONS: Record<DeckType, string[]> = {
 };
 
 const EXECUTIVE_QUESTION_BANKS: Record<string, Record<DeckType, string[]>> = {
-  ceo: CEO_QUESTIONS,
-  cfo: CFO_QUESTIONS,
-  coo: COO_QUESTIONS,
-  board: BOARD_QUESTIONS,
+  ceo: CEO_BASE_QUESTIONS,
+  cfo: CFO_BASE_QUESTIONS,
+  coo: COO_BASE_QUESTIONS,
+  board: BOARD_BASE_QUESTIONS,
 };
 
-function getRandomQuestion(questions: string[]): string {
-  return questions[Math.floor(Math.random() * questions.length)];
+const CEO_CONTEXTUAL_TEMPLATES = [
+  "Você mencionou '{excerpt}' no diagnóstico. Como isso se conecta com nossa visão de 5 anos?",
+  "Sobre sua análise de '{excerpt}', qual é o diferencial competitivo real que temos aqui?",
+  "Você identificou '{excerpt}' como crítico. O que acontece se ignorarmos isso por 6 meses?",
+];
+
+const CFO_CONTEXTUAL_TEMPLATES = [
+  "Você propôs '{excerpt}'. Qual é o impacto no EBITDA do próximo trimestre?",
+  "Considerando '{excerpt}', quanto de capital de giro adicional precisaremos?",
+  "Se '{excerpt}' não der resultado, qual é o plano B financeiro?",
+];
+
+const COO_CONTEXTUAL_TEMPLATES = [
+  "Para implementar '{excerpt}', quantas horas-time isso consome?",
+  "Sobre '{excerpt}' - isso compete com quais outras prioridades operacionais?",
+  "Como você mede o sucesso de '{excerpt}' nos primeiros 30 dias?",
+];
+
+const BOARD_CONTEXTUAL_TEMPLATES = [
+  "Os acionistas minoritários aprovariam '{excerpt}'?",
+  "Há precedentes de mercado para '{excerpt}'? Como outros boards reagiram?",
+  "Qual é o risco reputacional se '{excerpt}' der errado publicamente?",
+];
+
+const CONTEXTUAL_TEMPLATES: Record<string, string[]> = {
+  ceo: CEO_CONTEXTUAL_TEMPLATES,
+  cfo: CFO_CONTEXTUAL_TEMPLATES,
+  coo: COO_CONTEXTUAL_TEMPLATES,
+  board: BOARD_CONTEXTUAL_TEMPLATES,
+};
+
+function extractKeyPhrases(text: string): string[] {
+  if (!text || text.length < 10) return [];
+  
+  const sentences = text.split(/[.!?;]/).filter(s => s.trim().length > 15);
+  const phrases: string[] = [];
+  
+  for (const sentence of sentences) {
+    const trimmed = sentence.trim();
+    if (trimmed.length > 20 && trimmed.length < 100) {
+      phrases.push(trimmed);
+    } else if (trimmed.length >= 100) {
+      const words = trimmed.split(' ');
+      const shortPhrase = words.slice(0, 8).join(' ');
+      if (shortPhrase.length > 20) {
+        phrases.push(shortPhrase + '...');
+      }
+    }
+  }
+  
+  return phrases.slice(0, 3);
 }
 
-interface PlayerResponses {
-  diagnostico: string;
-  decisoes: string;
-  execucao: string;
-  storytelling: string;
+function getRandomItem<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function generateContextualQuestion(
+  executiveId: string, 
+  playerResponses: PlayerResponses
+): ExecutiveQuestion | null {
+  const templates = CONTEXTUAL_TEMPLATES[executiveId];
+  if (!templates) return null;
+
+  const allText = [
+    playerResponses.diagnostico,
+    playerResponses.decisoes,
+    playerResponses.execucao,
+    playerResponses.storytelling,
+  ].join(' ');
+
+  const phrases = extractKeyPhrases(allText);
+  if (phrases.length === 0) return null;
+
+  const phrase = getRandomItem(phrases);
+  const template = getRandomItem(templates);
+  const question = template.replace('{excerpt}', phrase);
+
+  return {
+    executiveId,
+    question,
+    context: phrase,
+  };
+}
+
+function generateBaseQuestion(
+  executiveId: string,
+  card: Card
+): ExecutiveQuestion {
+  const questionBank = EXECUTIVE_QUESTION_BANKS[executiveId];
+  const questions = questionBank?.[card.deckType] || ["Como você justifica essa decisão?"];
+  
+  return {
+    executiveId,
+    question: getRandomItem(questions),
+  };
 }
 
 export function generateExecutiveQuestions(
@@ -164,22 +259,31 @@ export function generateExecutiveQuestions(
 
   const questions: ExecutiveQuestion[] = [];
   const numQuestionsToGenerate = Math.min(executiveIds.length, 2 + Math.floor(tableCards.length / 2));
-
   const shuffledExecutives = [...executiveIds].sort(() => Math.random() - 0.5);
   const shuffledCards = [...tableCards].sort(() => Math.random() - 0.5);
+
+  const hasSubstantialResponse = playerResponses && (
+    playerResponses.diagnostico.length > 50 ||
+    playerResponses.decisoes.length > 50 ||
+    playerResponses.execucao.length > 50 ||
+    playerResponses.storytelling.length > 50
+  );
 
   for (let i = 0; i < numQuestionsToGenerate; i++) {
     const executive = shuffledExecutives[i % shuffledExecutives.length];
     const card = shuffledCards[i % shuffledCards.length];
-    const questionBank = EXECUTIVE_QUESTION_BANKS[executive];
     
-    if (questionBank && questionBank[card.card.deckType]) {
-      const question = getRandomQuestion(questionBank[card.card.deckType]);
-      questions.push({
-        executiveId: executive,
-        question,
-      });
+    const useContextual = hasSubstantialResponse && Math.random() > 0.4;
+    
+    if (useContextual && playerResponses) {
+      const contextualQ = generateContextualQuestion(executive, playerResponses);
+      if (contextualQ) {
+        questions.push(contextualQ);
+        continue;
+      }
     }
+    
+    questions.push(generateBaseQuestion(executive, card.card));
   }
 
   return questions;
@@ -190,5 +294,15 @@ export function getExecutiveChallenge(executiveId: string, card: Card): string {
   if (!questionBank || !questionBank[card.deckType]) {
     return "Como você justifica essa decisão?";
   }
-  return getRandomQuestion(questionBank[card.deckType]);
+  return getRandomItem(questionBank[card.deckType]);
+}
+
+export function getExecutiveInfo(executiveId: string): { name: string; title: string; focus: string } {
+  const info: Record<string, { name: string; title: string; focus: string }> = {
+    ceo: { name: "CEO", title: "Chief Executive Officer", focus: "Visão estratégica e diferenciação" },
+    cfo: { name: "CFO", title: "Chief Financial Officer", focus: "Retorno financeiro e riscos" },
+    coo: { name: "COO", title: "Chief Operating Officer", focus: "Execução e capacidade operacional" },
+    board: { name: "Conselho", title: "Board of Directors", focus: "Governança e stakeholders" },
+  };
+  return info[executiveId] || { name: executiveId, title: "", focus: "" };
 }
