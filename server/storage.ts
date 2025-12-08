@@ -243,25 +243,32 @@ export class DatabaseStorage implements IStorage {
     };
 
     if (round.currentStep === "cards" && step === "complete") {
+      const diagText = sanitize(response.diagnostico);
       round.response.diagnosis = {
-        contextDescription: sanitize(response.diagnostico),
-        mainRisks: sanitize(response.diagnostico),
-        opportunities: sanitize(response.diagnostico),
+        contextDescription: diagText,
+        mainRisks: "",
+        opportunities: "",
       };
+      const decText = sanitize(response.decisoes);
       round.response.decision = {
-        strategicDecisions: sanitize(response.decisoes),
-        financialIndicators: sanitize(response.decisoes),
-        scenarios: sanitize(response.decisoes),
+        strategicDecisions: decText,
+        financialIndicators: "",
+        scenarios: "",
       };
+      const execText = sanitize(response.execucao);
       round.response.execution = {
-        initiatives: sanitize(response.execucao),
-        riskMitigation: sanitize(response.execucao),
+        initiatives: execText,
+        riskMitigation: "",
       };
       round.response.storytelling = {
         presentation: sanitize(response.storytelling),
       };
       if (response.bossResponses) {
-        (round.response as any).boss = response.bossResponses;
+        try {
+          (round.response as any).boss = JSON.parse(response.bossResponses);
+        } catch {
+          (round.response as any).boss = response.bossResponses;
+        }
       }
     } else {
       switch (round.currentStep) {
