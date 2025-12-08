@@ -1,15 +1,15 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { createSessionSchema, type GameSession, type GameRound } from "@shared/schema";
+import { createSessionSchema, createGuestProfileSchema, type GameSession, type GameRound } from "@shared/schema";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { DECK_INFO } from "@shared/cardData";
 
 function generateSessionReport(session: GameSession): string {
   const difficultyLabels: Record<string, string> = {
-    easy: "Iniciante",
-    medium: "Intermediário", 
-    hard: "Avançado"
+    iniciante: "Iniciante",
+    intermediario: "Intermediário", 
+    avancado: "Avançado"
   };
   
   let report = `
@@ -145,6 +145,53 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching stats:", error);
       res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  app.post("/api/guest-profiles", async (req, res) => {
+    try {
+      const parsed = createGuestProfileSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parsed.error });
+      }
+      const profile = await storage.createGuestProfile(parsed.data);
+      res.json(profile);
+    } catch (error) {
+      console.error("Error creating guest profile:", error);
+      res.status(500).json({ error: "Failed to create guest profile" });
+    }
+  });
+
+  app.get("/api/guest-profiles/:id", async (req, res) => {
+    try {
+      const profile = await storage.getGuestProfile(req.params.id);
+      if (!profile) {
+        return res.status(404).json({ error: "Guest profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      console.error("Error fetching guest profile:", error);
+      res.status(500).json({ error: "Failed to fetch guest profile" });
+    }
+  });
+
+  app.get("/api/guest-profiles/:id/stats", async (req, res) => {
+    try {
+      const stats = await storage.getGuestStats(req.params.id);
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching guest stats:", error);
+      res.status(500).json({ error: "Failed to fetch guest stats" });
+    }
+  });
+
+  app.get("/api/guest-profiles/:id/sessions", async (req, res) => {
+    try {
+      const sessions = await storage.getAllSessions(undefined, req.params.id);
+      res.json(sessions);
+    } catch (error) {
+      console.error("Error fetching guest sessions:", error);
+      res.status(500).json({ error: "Failed to fetch guest sessions" });
     }
   });
 

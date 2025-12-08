@@ -1,4 +1,4 @@
-import type { Card, DeckType } from "./schema";
+import type { Card, DeckType, Difficulty } from "./schema";
 
 interface DeckInfo {
   type: DeckType;
@@ -474,16 +474,16 @@ export function getCardsByDeck(deckType: DeckType): Card[] {
   return ALL_CARDS.filter(card => card.deckType === deckType);
 }
 
-export function getCardsByDeckAndDifficulty(deckType: DeckType, difficulty?: "easy" | "medium" | "hard"): Card[] {
+export function getCardsByDeckAndDifficulty(deckType: DeckType, difficulty?: Difficulty): Card[] {
   const cards = getCardsByDeck(deckType);
   if (!difficulty) return cards;
   
-  if (difficulty === "easy") {
+  if (difficulty === "iniciante") {
     return cards.filter(card => {
       const complexity = getCardComplexity(card.id);
       return complexity === "easy" || complexity === "medium";
     });
-  } else if (difficulty === "medium") {
+  } else if (difficulty === "intermediario") {
     return cards;
   } else {
     return cards.filter(card => {
@@ -493,12 +493,12 @@ export function getCardsByDeckAndDifficulty(deckType: DeckType, difficulty?: "ea
   }
 }
 
-export function getRandomCard(deckType: DeckType, difficulty?: "easy" | "medium" | "hard"): Card {
+export function getRandomCard(deckType: DeckType, difficulty?: Difficulty): Card {
   const cards = getCardsByDeckAndDifficulty(deckType, difficulty);
   return cards[Math.floor(Math.random() * cards.length)];
 }
 
-export function drawRandomCards(difficulty?: "easy" | "medium" | "hard"): {
+export function drawRandomCards(difficulty?: Difficulty): {
   context: Card;
   strategy: Card;
   finance: Card;

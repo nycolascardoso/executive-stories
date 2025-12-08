@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   PlayCircle, 
-  Users, 
   Briefcase, 
   Lightbulb, 
   BarChart3, 
@@ -16,12 +17,13 @@ import {
   Zap,
   LogIn,
   LogOut,
-  Star
+  Star,
+  User
 } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import type { GameSession } from "@shared/schema";
+import type { GameSession, GuestProfile, Difficulty } from "@shared/schema";
 import { motion } from "framer-motion";
 
 const DECK_FEATURES = [
@@ -33,29 +35,70 @@ const DECK_FEATURES = [
   { icon: MessageSquare, label: "Storytelling", glowClass: "card-glow-storytelling", color: "text-pink-400" },
 ];
 
-const DIFFICULTY_OPTIONS = [
-  { value: "easy" as const, label: "Iniciante", stars: 1 },
-  { value: "medium" as const, label: "Intermediário", stars: 2 },
-  { value: "hard" as const, label: "Avançado", stars: 3 },
+const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; stars: number; description: string }[] = [
+  { value: "iniciante", label: "Iniciante", stars: 1, description: "Cenários mais simples, sem Boss Mode" },
+  { value: "intermediario", label: "Intermediário", stars: 2, description: "Min. 3 cartas, Boss Mode ativo" },
+  { value: "avancado", label: "Avançado", stars: 3, description: "Cenários complexos, Boss Mode intenso" },
 ];
 
 export default function Home() {
   const [, setLocation] = useLocation();
-  const [selectedMode, setSelectedMode] = useState<"solo" | "group">("solo");
-  const [selectedDifficulty, setSelectedDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("intermediario");
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  
+  const [guestProfileId, setGuestProfileId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("guestProfileId");
+    }
+    return null;
+  });
+  
+  const [showGuestForm, setShowGuestForm] = useState(false);
+  const [guestForm, setGuestForm] = useState({
+    firstName: "",
+    lastName: "",
+    company: "",
+  });
 
-  const { data: stats } = useQuery<{ totalRounds: number; avgScore: number; bestScore: number; roundsCompleted: number }>({
+  const { data: guestProfile } = useQuery<GuestProfile>({
+    queryKey: ["/api/guest-profiles", guestProfileId],
+    enabled: !!guestProfileId && !isAuthenticated,
+  });
+
+  const { data: authStats } = useQuery<{ totalRounds: number; avgScore: number; bestScore: number; roundsCompleted: number }>({
     queryKey: ["/api/auth/stats"],
     enabled: isAuthenticated,
   });
 
+  const { data: guestStats } = useQuery<{ totalRounds: number; avgScore: number; bestScore: number; roundsCompleted: number }>({
+    queryKey: ["/api/guest-profiles", guestProfileId, "stats"],
+    enabled: !!guestProfileId && !isAuthenticated,
+  });
+
+  const stats = isAuthenticated ? authStats : guestStats;
+  const displayName = isAuthenticated 
+    ? user?.firstName || user?.email?.split("@")[0]
+    : guestProfile?.firstName;
+
+  const createGuestProfileMutation = useMutation({
+    mutationFn: async (data: { firstName: string; lastName: string; company: string }) => {
+      const response = await apiRequest("POST", "/api/guest-profiles", data);
+      return await response.json() as GuestProfile;
+    },
+    onSuccess: (profile) => {
+      localStorage.setItem("guestProfileId", profile.id);
+      setGuestProfileId(profile.id);
+      setShowGuestForm(false);
+    },
+  });
+
   const createSessionMutation = useMutation({
-    mutationFn: async ({ mode, difficulty }: { mode: "solo" | "group"; difficulty: "easy" | "medium" | "hard" }) => {
+    mutationFn: async ({ difficulty, guestProfileId }: { difficulty: Difficulty; guestProfileId?: string }) => {
       const response = await apiRequest("POST", "/api/sessions", {
-        mode,
-        playerCount: mode === "solo" ? 1 : 3,
+        mode: "solo",
+        playerCount: 1,
         difficulty,
+        guestProfileId,
       });
       return await response.json() as GameSession;
     },
@@ -65,7 +108,26 @@ export default function Home() {
   });
 
   const handleStartGame = () => {
-    createSessionMutation.mutate({ mode: selectedMode, difficulty: selectedDifficulty });
+    if (!isAuthenticated && !guestProfileId) {
+      setShowGuestForm(true);
+      return;
+    }
+    createSessionMutation.mutate({ 
+      difficulty: selectedDifficulty,
+      guestProfileId: guestProfileId || undefined,
+    });
+  };
+
+  const handleGuestFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (guestForm.firstName && guestForm.lastName && guestForm.company) {
+      createGuestProfileMutation.mutate(guestForm);
+    }
+  };
+
+  const handleClearGuestProfile = () => {
+    localStorage.removeItem("guestProfileId");
+    setGuestProfileId(null);
   };
 
   return (
@@ -92,6 +154,23 @@ export default function Home() {
                   <a href="/api/logout">
                     <LogOut className="h-4 w-4" />
                   </a>
+                </Button>
+              </div>
+            ) : guestProfile ? (
+              <div className="flex items-center gap-3">
+                <Avatar className="h-9 w-9 border border-primary/30">
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {guestProfile.firstName[0]}{guestProfile.lastName[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="hidden sm:block">
+                  <div className="text-sm font-medium text-muted-foreground">
+                    {guestProfile.firstName} {guestProfile.lastName}
+                  </div>
+                  <div className="text-xs text-muted-foreground/70">{guestProfile.company}</div>
+                </div>
+                <Button variant="ghost" size="sm" onClick={handleClearGuestProfile} data-testid="button-clear-guest">
+                  <LogOut className="h-4 w-4" />
                 </Button>
               </div>
             ) : (
@@ -126,7 +205,7 @@ export default function Home() {
           </motion.div>
         </header>
 
-        {isAuthenticated && stats && stats.roundsCompleted > 0 && (
+        {(isAuthenticated || guestProfile) && stats && stats.roundsCompleted > 0 && (
           <motion.div 
             className="mb-12 p-6 rounded-xl border-glow bg-card/50"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -135,7 +214,9 @@ export default function Home() {
           >
             <div className="flex items-center gap-3 mb-4">
               <Trophy className="h-5 w-5 text-primary" />
-              <span className="font-display text-lg font-semibold">Seu Progresso</span>
+              <span className="font-display text-lg font-semibold">
+                {displayName ? `Progresso de ${displayName}` : "Seu Progresso"}
+              </span>
             </div>
             <div className="grid grid-cols-4 gap-4">
               <div className="text-center">
@@ -196,141 +277,205 @@ export default function Home() {
           transition={{ duration: 0.5, delay: 0.4 }}
         >
           <div className="p-8 rounded-2xl border-glow bg-card/30">
-            <div className="grid md:grid-cols-2 gap-8 items-center">
-              <div>
-                <h2 className="font-display text-2xl font-semibold mb-6">Escolha seu Desafio</h2>
-                
-                <div className="space-y-4 mb-6">
-                  <div className="flex gap-3">
-                    <button
-                      className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${
-                        selectedMode === "solo"
-                          ? "border-primary bg-primary/10"
-                          : "border-border/50 bg-card/50 hover:border-border"
-                      }`}
-                      onClick={() => setSelectedMode("solo")}
-                      data-testid="button-mode-solo"
-                    >
-                      <PlayCircle className={`h-6 w-6 mb-2 ${selectedMode === "solo" ? "text-primary" : "text-muted-foreground"}`} />
-                      <div className="font-semibold text-sm">Solo</div>
-                      <div className="text-xs text-muted-foreground mt-1">Treine no seu ritmo</div>
-                    </button>
-                    <button
-                      className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${
-                        selectedMode === "group"
-                          ? "border-primary bg-primary/10"
-                          : "border-border/50 bg-card/50 hover:border-border"
-                      }`}
-                      onClick={() => setSelectedMode("group")}
-                      data-testid="button-mode-group"
-                    >
-                      <Users className={`h-6 w-6 mb-2 ${selectedMode === "group" ? "text-primary" : "text-muted-foreground"}`} />
-                      <div className="font-semibold text-sm">Grupo</div>
-                      <div className="text-xs text-muted-foreground mt-1">Workshop colaborativo</div>
-                    </button>
-                  </div>
-
-                  <div className="flex gap-2">
-                    {DIFFICULTY_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        className={`flex-1 p-3 rounded-xl border-2 text-center transition-all ${
-                          selectedDifficulty === option.value
-                            ? "border-primary bg-primary/10"
-                            : "border-border/50 bg-card/50 hover:border-border"
-                        }`}
-                        onClick={() => setSelectedDifficulty(option.value)}
-                        data-testid={`button-difficulty-${option.value}`}
-                      >
-                        <div className="flex justify-center gap-0.5 mb-1">
-                          {Array.from({ length: 3 }).map((_, idx) => (
-                            <Star 
-                              key={idx} 
-                              className={`h-3 w-3 ${idx < option.stars ? "text-primary fill-primary" : "text-muted-foreground/30"}`}
-                            />
-                          ))}
-                        </div>
-                        <div className={`text-xs font-medium ${selectedDifficulty === option.value ? "text-primary" : "text-muted-foreground"}`}>
-                          {option.label}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <Button
-                  size="lg"
-                  className="w-full btn-game-primary text-primary-foreground font-semibold"
-                  onClick={handleStartGame}
-                  disabled={createSessionMutation.isPending}
-                  data-testid="button-start-game"
-                >
-                  {createSessionMutation.isPending ? (
-                    <span className="flex items-center gap-2">
-                      <motion.div 
-                        className="h-4 w-4 border-2 border-current border-t-transparent rounded-full"
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      />
-                      Iniciando...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <Zap className="h-5 w-5" />
-                      Iniciar Jogo
-                    </span>
-                  )}
-                </Button>
-                
-                {!isAuthenticated && (
-                  <p className="text-xs text-muted-foreground text-center mt-3">
-                    Entre para salvar seu progresso
+            {showGuestForm ? (
+              <div className="max-w-md mx-auto">
+                <div className="text-center mb-6">
+                  <User className="h-12 w-12 mx-auto mb-3 text-primary" />
+                  <h2 className="font-display text-2xl font-semibold mb-2">Identificação</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Preencha seus dados para salvar seu progresso
                   </p>
-                )}
+                </div>
+                
+                <form onSubmit={handleGuestFormSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">Nome</Label>
+                      <Input
+                        id="firstName"
+                        value={guestForm.firstName}
+                        onChange={(e) => setGuestForm(prev => ({ ...prev, firstName: e.target.value }))}
+                        placeholder="Seu nome"
+                        required
+                        data-testid="input-guest-firstname"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Sobrenome</Label>
+                      <Input
+                        id="lastName"
+                        value={guestForm.lastName}
+                        onChange={(e) => setGuestForm(prev => ({ ...prev, lastName: e.target.value }))}
+                        placeholder="Seu sobrenome"
+                        required
+                        data-testid="input-guest-lastname"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company">Empresa</Label>
+                    <Input
+                      id="company"
+                      value={guestForm.company}
+                      onChange={(e) => setGuestForm(prev => ({ ...prev, company: e.target.value }))}
+                      placeholder="Sua empresa"
+                      required
+                      data-testid="input-guest-company"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setShowGuestForm(false)}
+                    >
+                      Voltar
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="flex-1 btn-game-primary"
+                      disabled={createGuestProfileMutation.isPending}
+                      data-testid="button-submit-guest"
+                    >
+                      {createGuestProfileMutation.isPending ? "Salvando..." : "Continuar"}
+                    </Button>
+                  </div>
+                </form>
+                
+                <div className="mt-6 pt-6 border-t border-border/30 text-center">
+                  <p className="text-xs text-muted-foreground mb-2">Ou entre com sua conta</p>
+                  <Button variant="outline" size="sm" asChild>
+                    <a href="/api/login">
+                      <LogIn className="h-4 w-4 mr-2" />
+                      Entrar com Replit
+                    </a>
+                  </Button>
+                </div>
               </div>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-8 items-center">
+                <div>
+                  <h2 className="font-display text-2xl font-semibold mb-6">Escolha seu Desafio</h2>
+                  
+                  <div className="space-y-4 mb-6">
+                    <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-primary bg-primary/10">
+                      <PlayCircle className="h-6 w-6 text-primary" />
+                      <div>
+                        <div className="font-semibold text-sm">Modo Solo</div>
+                        <div className="text-xs text-muted-foreground">Treine no seu ritmo</div>
+                      </div>
+                    </div>
 
-              <div className="hidden md:block">
-                <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
-                    <h3 className="font-display text-sm font-semibold mb-3 flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      Como Funciona
-                    </h3>
-                    <div className="space-y-3 text-sm">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-mono-game">1</span>
-                        <span className="text-muted-foreground">Sorteie 6 cartas de cada baralho</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-mono-game">2</span>
-                        <span className="text-muted-foreground">Analise o cenário e tome decisões</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-mono-game">3</span>
-                        <span className="text-muted-foreground">Construa sua narrativa executiva</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-mono-game">4</span>
-                        <span className="text-muted-foreground">Receba avaliação com IA</span>
-                      </div>
+                    <div className="space-y-2">
+                      {DIFFICULTY_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                            selectedDifficulty === option.value
+                              ? "border-primary bg-primary/10"
+                              : "border-border/50 bg-card/50 hover:border-border"
+                          }`}
+                          onClick={() => setSelectedDifficulty(option.value)}
+                          data-testid={`button-difficulty-${option.value}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="flex gap-0.5">
+                                {Array.from({ length: 3 }).map((_, idx) => (
+                                  <Star 
+                                    key={idx} 
+                                    className={`h-4 w-4 ${idx < option.stars ? "text-primary fill-primary" : "text-muted-foreground/30"}`}
+                                  />
+                                ))}
+                              </div>
+                              <span className={`font-semibold ${selectedDifficulty === option.value ? "text-primary" : ""}`}>
+                                {option.label}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1 ml-[52px]">
+                            {option.description}
+                          </p>
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
-                    <h3 className="font-display text-sm font-semibold mb-3">Avaliação</h3>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="p-2 rounded-lg bg-card/50">Diagnóstico</div>
-                      <div className="p-2 rounded-lg bg-card/50">Finanças</div>
-                      <div className="p-2 rounded-lg bg-card/50">Execução</div>
-                      <div className="p-2 rounded-lg bg-card/50">Storytelling</div>
+                  <Button
+                    size="lg"
+                    className="w-full btn-game-primary text-primary-foreground font-semibold"
+                    onClick={handleStartGame}
+                    disabled={createSessionMutation.isPending}
+                    data-testid="button-start-game"
+                  >
+                    {createSessionMutation.isPending ? (
+                      <span className="flex items-center gap-2">
+                        <motion.div 
+                          className="h-4 w-4 border-2 border-current border-t-transparent rounded-full"
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        />
+                        Iniciando...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <Zap className="h-5 w-5" />
+                        Iniciar Jogo
+                      </span>
+                    )}
+                  </Button>
+                  
+                  {!isAuthenticated && !guestProfile && (
+                    <p className="text-xs text-muted-foreground text-center mt-3">
+                      Seus dados serão solicitados para salvar o progresso
+                    </p>
+                  )}
+                </div>
+
+                <div className="hidden md:block">
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+                      <h3 className="font-display text-sm font-semibold mb-3 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        Como Funciona
+                      </h3>
+                      <div className="space-y-3 text-sm">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-mono-game">1</span>
+                          <span className="text-muted-foreground">Sorteie 6 cartas de cada baralho</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-mono-game">2</span>
+                          <span className="text-muted-foreground">Selecione e analise o cenário</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-mono-game">3</span>
+                          <span className="text-muted-foreground">Responda aos executivos (Boss Mode)</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-mono-game">4</span>
+                          <span className="text-muted-foreground">Receba avaliação detalhada com IA</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-3 pt-3 border-t border-border/30 text-xs text-muted-foreground">
-                      Pontuação: 0-12 pontos por rodada
+
+                    <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+                      <h3 className="font-display text-sm font-semibold mb-3">Avaliação por Executivo</h3>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 rounded-lg bg-card/50">CEO - Visão</div>
+                        <div className="p-2 rounded-lg bg-card/50">CFO - Finanças</div>
+                        <div className="p-2 rounded-lg bg-card/50">COO - Execução</div>
+                        <div className="p-2 rounded-lg bg-card/50">Board - Governança</div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-border/30 text-xs text-muted-foreground">
+                        Feedback baseado em Harvard, MIT, Stanford
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </motion.section>
 

@@ -51,6 +51,20 @@ export interface RoundResponse {
   storytelling?: StorytellingResponse;
 }
 
+export interface ExecutiveFeedback {
+  executiveId: string;
+  executiveName: string;
+  score: number;
+  feedback: string;
+  methodology: string;
+}
+
+export interface BossResponse {
+  executiveId: string;
+  question: string;
+  answer: string;
+}
+
 export interface RoundScore {
   diagnosisClarity: number;
   financialCoherence: number;
@@ -58,6 +72,7 @@ export interface RoundScore {
   storytellingQuality: number;
   total: number;
   feedback: string;
+  executiveFeedback?: ExecutiveFeedback[];
 }
 
 export type GameStep = "cards" | "diagnosis" | "decision" | "execution" | "storytelling" | "complete";
@@ -72,12 +87,23 @@ export interface GameRound {
   currentStep: GameStep;
 }
 
+export type Difficulty = "iniciante" | "intermediario" | "avancado";
+
+export interface GuestProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  company: string;
+  createdAt: string;
+}
+
 export interface GameSession {
   id: string;
   odidUserId?: string;
-  mode: "solo" | "group";
+  guestProfileId?: string;
+  mode: "solo";
   playerCount: number;
-  difficulty?: "easy" | "medium" | "hard";
+  difficulty: Difficulty;
   rounds: GameRound[];
   createdAt: string;
   updatedAt: string;
@@ -103,12 +129,21 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const guestProfiles = pgTable("guest_profiles", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  firstName: varchar("first_name").notNull(),
+  lastName: varchar("last_name").notNull(),
+  company: varchar("company").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const gameSessions = pgTable("game_sessions", {
   id: varchar("id", { length: 36 }).primaryKey(),
   userId: varchar("user_id").references(() => users.id),
+  guestProfileId: varchar("guest_profile_id", { length: 36 }).references(() => guestProfiles.id),
   mode: text("mode").notNull().default("solo"),
   playerCount: integer("player_count").notNull().default(1),
-  difficulty: text("difficulty").default("medium"),
+  difficulty: text("difficulty").notNull().default("iniciante"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -128,10 +163,18 @@ export const usersRelations = relations(users, ({ many }) => ({
   gameSessions: many(gameSessions),
 }));
 
+export const guestProfilesRelations = relations(guestProfiles, ({ many }) => ({
+  gameSessions: many(gameSessions),
+}));
+
 export const gameSessionsRelations = relations(gameSessions, ({ one, many }) => ({
   user: one(users, {
     fields: [gameSessions.userId],
     references: [users.id],
+  }),
+  guestProfile: one(guestProfiles, {
+    fields: [gameSessions.guestProfileId],
+    references: [guestProfiles.id],
   }),
   rounds: many(rounds),
 }));
@@ -148,18 +191,27 @@ export type User = typeof users.$inferSelect;
 export type Session = typeof gameSessions.$inferSelect;
 export type Round = typeof rounds.$inferSelect;
 
+export const createGuestProfileSchema = z.object({
+  firstName: z.string().min(1, "Nome é obrigatório"),
+  lastName: z.string().min(1, "Sobrenome é obrigatório"),
+  company: z.string().min(1, "Empresa é obrigatória"),
+});
+
 export const createSessionSchema = z.object({
-  mode: z.enum(["solo", "group"]),
-  playerCount: z.number().min(1).max(10).default(1),
-  difficulty: z.enum(["easy", "medium", "hard"]).optional(),
+  mode: z.enum(["solo"]).default("solo"),
+  playerCount: z.number().min(1).max(1).default(1),
+  difficulty: z.enum(["iniciante", "intermediario", "avancado"]),
+  guestProfileId: z.string().optional(),
 });
 
 export const updateRoundResponseSchema = z.object({
   sessionId: z.string(),
   roundId: z.string(),
-  step: z.enum(["diagnosis", "decision", "execution", "storytelling"]),
+  step: z.enum(["diagnosis", "decision", "execution", "storytelling", "complete"]),
   response: z.record(z.string(), z.string()),
 });
 
+export type CreateGuestProfile = z.infer<typeof createGuestProfileSchema>;
 export type CreateSession = z.infer<typeof createSessionSchema>;
 export type UpdateRoundResponse = z.infer<typeof updateRoundResponseSchema>;
+export type GuestProfileSelect = typeof guestProfiles.$inferSelect;

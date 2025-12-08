@@ -5,6 +5,7 @@ import {
   users, 
   gameSessions, 
   rounds,
+  guestProfiles,
   type User,
   type UpsertUser,
   type GameSession, 
@@ -13,7 +14,10 @@ import {
   type RoundResponse,
   type RoundScore,
   type CreateSession,
-  type GameStep
+  type GameStep,
+  type Difficulty,
+  type GuestProfile,
+  type CreateGuestProfile
 } from "@shared/schema";
 import { drawRandomCards } from "@shared/cardData";
 import { evaluateResponseWithAI } from "./aiService";
@@ -21,9 +25,12 @@ import { evaluateResponseWithAI } from "./aiService";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  createGuestProfile(data: CreateGuestProfile): Promise<GuestProfile>;
+  getGuestProfile(id: string): Promise<GuestProfile | undefined>;
+  getGuestStats(guestProfileId: string): Promise<{ totalRounds: number; avgScore: number; bestScore: number; roundsCompleted: number }>;
   createSession(data: CreateSession, userId?: string): Promise<GameSession>;
   getSession(id: string): Promise<GameSession | undefined>;
-  getAllSessions(userId?: string): Promise<GameSession[]>;
+  getAllSessions(userId?: string, guestProfileId?: string): Promise<GameSession[]>;
   getUserStats(userId: string): Promise<{ totalRounds: number; avgScore: number; bestScore: number; roundsCompleted: number }>;
   createRound(sessionId: string): Promise<GameRound | undefined>;
   updateRound(sessionId: string, roundId: string, step: string, response: Record<string, string>): Promise<GameRound | undefined>;
@@ -50,16 +57,77 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async createGuestProfile(data: CreateGuestProfile): Promise<GuestProfile> {
+    const id = randomUUID();
+    const now = new Date();
+    await db.insert(guestProfiles).values({
+      id,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      company: data.company,
+      createdAt: now,
+    });
+    return {
+      id,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      company: data.company,
+      createdAt: now.toISOString(),
+    };
+  }
+
+  async getGuestProfile(id: string): Promise<GuestProfile | undefined> {
+    const [profile] = await db.select().from(guestProfiles).where(eq(guestProfiles.id, id));
+    if (!profile) return undefined;
+    return {
+      id: profile.id,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      company: profile.company,
+      createdAt: profile.createdAt.toISOString(),
+    };
+  }
+
+  async getGuestStats(guestProfileId: string): Promise<{ totalRounds: number; avgScore: number; bestScore: number; roundsCompleted: number }> {
+    const sessions = await db.select().from(gameSessions).where(eq(gameSessions.guestProfileId, guestProfileId));
+    let totalRounds = 0;
+    let totalScore = 0;
+    let bestScore = 0;
+    let roundsCompleted = 0;
+    
+    for (const session of sessions) {
+      const sessionRounds = await db.select().from(rounds).where(eq(rounds.sessionId, session.id));
+      totalRounds += sessionRounds.length;
+      for (const round of sessionRounds) {
+        if (round.score) {
+          const score = round.score as RoundScore;
+          totalScore += score.total;
+          roundsCompleted++;
+          if (score.total > bestScore) bestScore = score.total;
+        }
+      }
+    }
+    
+    return {
+      totalRounds,
+      avgScore: roundsCompleted > 0 ? Math.round(totalScore / roundsCompleted * 10) / 10 : 0,
+      bestScore,
+      roundsCompleted,
+    };
+  }
+
   async createSession(data: CreateSession, userId?: string): Promise<GameSession> {
     const id = randomUUID();
     const now = new Date();
+    const difficulty = data.difficulty || "iniciante";
 
     await db.insert(gameSessions).values({
       id,
       userId: userId || null,
-      mode: data.mode,
-      playerCount: data.playerCount || 1,
-      difficulty: data.difficulty || "medium",
+      guestProfileId: data.guestProfileId || null,
+      mode: "solo",
+      playerCount: 1,
+      difficulty,
       createdAt: now,
       updatedAt: now,
     });
@@ -67,9 +135,10 @@ export class DatabaseStorage implements IStorage {
     return {
       id,
       odidUserId: userId,
-      mode: data.mode,
-      playerCount: data.playerCount || 1,
-      difficulty: data.difficulty || "medium",
+      guestProfileId: data.guestProfileId,
+      mode: "solo",
+      playerCount: 1,
+      difficulty,
       rounds: [],
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
@@ -96,22 +165,39 @@ export class DatabaseStorage implements IStorage {
       completedAt: r.completedAt?.toISOString(),
     }));
 
+    const mapDifficulty = (d: string | null): Difficulty => {
+      if (d === "iniciante" || d === "intermediario" || d === "avancado") return d;
+      if (d === "easy") return "iniciante";
+      if (d === "hard") return "avancado";
+      return "iniciante";
+    };
+
     return {
       id: session.id,
       odidUserId: session.userId || undefined,
-      mode: session.mode as "solo" | "group",
+      guestProfileId: session.guestProfileId || undefined,
+      mode: "solo",
       playerCount: session.playerCount,
-      difficulty: session.difficulty as "easy" | "medium" | "hard" | undefined,
+      difficulty: mapDifficulty(session.difficulty),
       rounds: gameRounds,
       createdAt: session.createdAt.toISOString(),
       updatedAt: session.updatedAt.toISOString(),
     };
   }
 
-  async getAllSessions(userId?: string): Promise<GameSession[]> {
+  async getAllSessions(userId?: string, guestProfileId?: string): Promise<GameSession[]> {
+    const mapDifficulty = (d: string | null): Difficulty => {
+      if (d === "iniciante" || d === "intermediario" || d === "avancado") return d;
+      if (d === "easy") return "iniciante";
+      if (d === "hard") return "avancado";
+      return "iniciante";
+    };
+
     let query;
     if (userId) {
       query = await db.select().from(gameSessions).where(eq(gameSessions.userId, userId));
+    } else if (guestProfileId) {
+      query = await db.select().from(gameSessions).where(eq(gameSessions.guestProfileId, guestProfileId));
     } else {
       query = await db.select().from(gameSessions);
     }
@@ -137,9 +223,10 @@ export class DatabaseStorage implements IStorage {
       allSessions.push({
         id: session.id,
         odidUserId: session.userId || undefined,
-        mode: session.mode as "solo" | "group",
+        guestProfileId: session.guestProfileId || undefined,
+        mode: "solo",
         playerCount: session.playerCount,
-        difficulty: session.difficulty as "easy" | "medium" | "hard" | undefined,
+        difficulty: mapDifficulty(session.difficulty),
         rounds: gameRounds,
         createdAt: session.createdAt.toISOString(),
         updatedAt: session.updatedAt.toISOString(),
