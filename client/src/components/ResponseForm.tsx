@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowRight, ArrowLeft, Sparkles, Lightbulb, Zap } from "lucide-react";
+import { ArrowRight, ArrowLeft, Sparkles, Lightbulb, Zap, Mic } from "lucide-react";
 import type { DrawnCards } from "@shared/schema";
 import { motion } from "framer-motion";
+import { VoiceInput } from "./VoiceInput";
 
 type GameStep = "cards" | "diagnosis" | "decision" | "execution" | "storytelling" | "complete";
 
@@ -164,11 +165,20 @@ export function ResponseForm({
     });
     return initial;
   });
+  const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
 
   if (!config) return null;
 
   const handleChange = (key: string, value: string) => {
     setValues(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleVoiceTranscript = (key: string, transcript: string) => {
+    setValues(prev => ({
+      ...prev,
+      [key]: prev[key] ? `${prev[key]}\n\n${transcript}` : transcript,
+    }));
+    setActiveVoiceField(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -241,11 +251,34 @@ export function ResponseForm({
               className="min-h-32 resize-y bg-card/50 border-border/50 focus:border-primary/50 transition-colors"
               data-testid={`input-${field.key}`}
             />
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setActiveVoiceField(activeVoiceField === field.key ? null : field.key)}
+                className="text-xs"
+                data-testid={`button-voice-${field.key}`}
+              >
+                <Mic className="h-3 w-3 mr-1.5" />
+                {activeVoiceField === field.key ? "Cancelar Voz" : "Ditar"}
+              </Button>
               <span className="font-mono-game text-[10px] text-muted-foreground/60">
                 {values[field.key]?.length || 0} caracteres
               </span>
             </div>
+            {activeVoiceField === field.key && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <VoiceInput
+                  onTranscript={(text) => handleVoiceTranscript(field.key, text)}
+                  disabled={isSubmitting}
+                />
+              </motion.div>
+            )}
           </motion.div>
         ))}
       </div>

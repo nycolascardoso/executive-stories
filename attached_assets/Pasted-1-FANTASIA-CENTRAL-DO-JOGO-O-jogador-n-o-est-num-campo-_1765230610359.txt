@@ -1,0 +1,333 @@
+1. FANTASIA CENTRAL DO JOGO
+
+O jogador não está num campo de batalha, e sim em uma sala de reunião de alto nível:
+
+O “campo de duelo” é a mesa de reunião.
+
+O “oponente” são avatars executivos (CEO, CFO, COO, Conselho).
+
+As “cartas” representam:
+
+contexto da empresa
+
+estratégia
+
+finanças
+
+projetos
+
+governança
+
+storytelling
+
+O jogador “baixa” cartas como se estivesse estruturando seu raciocínio e defesa diante da diretoria.
+
+2. LAYOUT DE TELA (INSPIRAÇÃO BALATRO / YU-GI-OH)
+
+A tela principal deve ter 3 camadas claras, de baixo para cima:
+
+2.1 ZONA DO JOGADOR (MÃO / HAND) – PARTE INFERIOR
+
+Uma faixa na parte de baixo da tela, ocupando ~25% da altura.
+
+Ali aparecem as cartas na mão do jogador:
+
+6 cartas da rodada (Contexto, Estratégia, Finanças, Projetos, Governança, Storytelling)
+
+Representadas como cards clicáveis com:
+
+título
+
+ícone
+
+cor por tipo (ex.: azul = finanças, vermelho = estratégia etc.)
+
+O jogador pode:
+
+Passar o mouse / tocar para ver detalhes da carta (tooltip, zoom).
+
+“Arrastar” a carta para a mesa (zona central) para dizer que está usando aquele elemento na sua resposta.
+
+Importante: garantir essa sensação visual de “mão de cartas” — alinhadas, em leque, embaixo, igual Balatro/Yu-Gi-Oh.
+
+2.2 ZONA DE MESA / REUNIÃO (PLAY AREA) – CENTRO
+
+Centro da tela, ~50% da altura.
+
+Fundo: mesa de reunião vista de cima ou em perspectiva leve.
+
+Quando o jogador arrasta uma carta da mão para a mesa, ela:
+
+é “baixada”
+
+cresce um pouco
+
+fica posicionada na mesa
+
+A mesa pode ter slots/áreas sugeridas:
+
+Slot de Diagnóstico
+
+Slot de Estratégia
+
+Slot Financeiro
+
+Slot de Projetos
+
+Slot de Riscos
+
+Slot de Storytelling
+
+Isso ajuda o jogador a entender onde encaixar mentalmente cada aspecto da resposta.
+
+A ideia: o jogador “monta” sua argumentação sobre a mesa, usando as cartas escolhidas como base.
+
+2.3 ZONA DOS EXECUTIVOS / BOSSES – PARTE SUPERIOR
+
+Na parte de cima, ~25% da altura:
+
+Avatares dos executivos (CEO, CFO, COO, Conselho).
+
+Cada avatar tem:
+
+Nome (ex.: “CEO”, “CFO”, “Conselheiro Independente”)
+
+Pequena descrição de estilo (mais agressivo, mais financeiro, mais cético etc.)
+
+Quando o modo “boss” estiver habilitado, esses executivos:
+
+fazem perguntas difíceis contextuais
+
+reagem ao discurso do jogador
+
+“atacam” com perguntas que desafiam o raciocínio.
+
+3. SISTEMA DE CARTAS E MÃO DO JOGADOR
+
+O jogo usa 6 baralhos:
+
+Contexto & Empresa
+
+Estratégia
+
+Finanças
+
+Projetos & Execução
+
+Governança & Risco
+
+Storytelling & Comunicação
+
+Em cada rodada:
+
+O sistema sorteia 1 carta de cada baralho.
+
+Essas 6 cartas são a “mão do jogador” e aparecem embaixo.
+
+Cada carta tem:
+
+ID
+
+Nome
+
+Descrição curta
+
+Pergunta/desafio
+
+Ao clicar ou aproximar o mouse, abre um painel lateral ou popup com:
+
+Descrição completa da carta
+
+Perguntas orientadoras para o jogador pensar.
+
+4. MODOS DE USO DAS CARTAS
+
+As cartas não são “poderes numéricos”, e sim “pilares de raciocínio”:
+
+O jogador pode “baixar” (arrastar para a mesa) todas ou algumas cartas, para indicar:
+
+quais ele quer focar na narrativa
+
+qual caminho estratégico/financeiro quer enfatizar
+
+A IA usa as cartas baixadas como sinal de:
+
+quais eixos priorizar na análise e nas perguntas
+
+que tipo de questionamento os bosses irão fazer
+
+5. MODO BOSSES (CEO / CFO / COO / CONSELHO)
+
+Haverá uma opção clara no UI:
+
+Toggle: “Modo Boss Executivos: ON/OFF”
+
+Quando ON, o jogo ativa um sistema de perguntas complexas, baseado nos avatares:
+
+5.1 CEO – FOCO EM VISÃO, RISCO E CRESCIMENTO
+
+Exemplos de perguntas:
+
+“Ok, mas como essa decisão fortalece nossa tese de longo prazo?”
+
+“O que exatamente impede que um concorrente copie isso em 6 meses?”
+
+“Qual é o risco real dessa estratégia e como você pretende mitigá-lo sem travar o crescimento?”
+
+5.2 CFO – FOCO EM NÚMEROS, ROI, CAIXA E RISCO FINANCEIRO
+
+Exemplos:
+
+“Por que investiríamos nesse projeto se o ROI estimado é menor do que a taxa SELIC?”
+
+“Mostre claramente o impacto dessa decisão no fluxo de caixa dos próximos 12 meses.”
+
+“Se a receita demorar 6 meses a mais para entrar, onde você vai ajustar o orçamento?”
+
+5.3 COO – FOCO EM EXECUÇÃO, CAPACIDADE OPERACIONAL E PRAZO
+
+Exemplos:
+
+“Você está propondo esse plano com o mesmo time e mesmas horas. O que sai da fila?”
+
+“Como você garante que essa mudança não vai quebrar a operação nos próximos 90 dias?”
+
+“Quais dependências críticas você está subestimando?”
+
+5.4 CONSELHO / BOARD – FOCO EM RISCO GLOBAL, GOVERNANÇA E VALOR DE LONGO PRAZO
+
+Exemplos:
+
+“Como essa decisão será percebida pelo mercado e pelos acionistas?”
+
+“Que trade-offs de curto prazo você está assumindo em nome do longo prazo?”
+
+“Quais são os cenários em que essa aposta dá errado e o que fazemos se isso acontecer?”
+
+O sistema deve gerar essas perguntas de forma contextual, usando:
+
+cartas baixadas na mesa
+
+diagnóstico e plano que o jogador escreveu/falou.
+
+6. INTERAÇÃO DO JOGADOR: TEXTO E VOZ
+6.1 Entrada por Texto
+
+Campo de texto para:
+
+diagnóstico
+
+decisões
+
+plano
+
+narrativa final
+
+6.2 Entrada por Voz (Discurso)
+
+Botão grande e visível na área central ou inferior:
+🎙️ “DitAR Discurso Executivo”
+
+Ao clicar:
+
+começa gravação de voz
+
+indicador visual de captura
+
+Após terminar:
+
+a fala é convertida em texto (Speech-to-Text)
+
+o texto aparece para o jogador revisar
+
+esse texto é o discurso apresentado na reunião
+
+A IA deve avaliar o discurso em:
+
+clareza
+
+objetividade
+
+estrutura narrativa
+
+coerência com as cartas
+
+qualidade executiva
+
+7. FLUXO DE UMA RODADA (RESUMO)
+
+Sorteio das 6 cartas → aparecem na mão embaixo.
+
+Jogador lê as cartas (hover/zoom).
+
+Jogador arrasta algumas cartas para a mesa → indica seu foco de raciocínio.
+
+Jogador:
+
+escreve diagnóstico, decisões, plano
+
+ou grava seu discurso por voz.
+
+Se Modo Boss estiver ON:
+
+CEO/CFO/COO/Conselho aparecem em cima
+
+fazem perguntas difíceis contextuais
+
+jogador responde (texto ou voz).
+
+IA:
+
+avalia a qualidade da resposta
+
+gera feedback
+
+atualiza “pontuação executiva” da rodada.
+
+8. FEEDBACK E AVALIAÇÃO
+
+A avaliação deve considerar:
+
+Clareza de diagnóstico
+
+Coerência estratégica
+
+Qualidade financeira (ROI, caixa, risco)
+
+Realismo de execução (projetos, prazos, time)
+
+Governança e risco
+
+Storytelling (estrutura, narrativa, impacto)
+
+Resposta às perguntas difíceis dos bosses
+
+O resultado pode ser mostrado em um quadro à direita, com:
+
+notas
+
+comentários
+
+sugestões concretas de melhoria
+
+9. PRINCÍPIOS DE UX
+
+Cartas SEMPRE visíveis embaixo como “mão do jogador”.
+
+Mesa SEMPRE visível no centro, com espaço para colocar cartas.
+
+Executivos SEMPRE visíveis em cima quando modo boss estiver ativo.
+
+Estética de jogo de cartas, não de planilha ou sistema corporativo.
+
+10. OBJETIVO
+
+Criar um jogo que:
+
+pareça um duelo executivo em sala de reunião
+
+use cartas como linguagem visual de raciocínio
+
+permita o jogador falar seu discurso
+
+devolva perguntas difíceis e feedback de alto nível.

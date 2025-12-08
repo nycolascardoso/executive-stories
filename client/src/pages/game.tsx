@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Home, 
   Plus, 
-  ArrowRight,
   ChevronLeft,
   Shuffle,
   History,
@@ -20,6 +19,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
+import { GameArena } from "@/components/GameArena";
 import { GameStepIndicator } from "@/components/GameStepIndicator";
 import { ResponseForm } from "@/components/ResponseForm";
 import { ScoreDisplay } from "@/components/ScoreDisplay";
@@ -34,6 +34,7 @@ export default function Game() {
   const [, setLocation] = useLocation();
   const [viewMode, setViewMode] = useState<ViewMode>("game");
   const [selectedHistoryRound, setSelectedHistoryRound] = useState<GameRound | null>(null);
+  const [activeTableCards, setActiveTableCards] = useState<string[]>([]);
 
   const { data: session, isLoading, error } = useQuery<GameSession>({
     queryKey: ["/api/sessions", sessionId],
@@ -47,6 +48,7 @@ export default function Game() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId] });
+      setActiveTableCards([]);
     },
   });
 
@@ -93,8 +95,9 @@ export default function Game() {
     });
   };
 
-  const handleContinueFromCards = () => {
+  const handleProceedFromArena = (tableCards: string[]) => {
     if (!currentRound) return;
+    setActiveTableCards(tableCards);
     updateRoundMutation.mutate({
       roundId: currentRound.id,
       step: "diagnosis",
@@ -104,14 +107,16 @@ export default function Game() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-6">
-        <div className="max-w-7xl mx-auto">
-          <Skeleton className="h-16 w-full mb-8 rounded-xl" />
-          <div className="grid lg:grid-cols-3 gap-6">
-            <Skeleton className="h-96 rounded-xl" />
-            <Skeleton className="h-96 rounded-xl" />
-            <Skeleton className="h-96 rounded-xl" />
-          </div>
+      <div className="h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <motion.div
+            className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          >
+            <Shuffle className="h-8 w-8 text-primary" />
+          </motion.div>
+          <p className="text-muted-foreground">Carregando sessão...</p>
         </div>
       </div>
     );
@@ -119,7 +124,7 @@ export default function Game() {
 
   if (error || !session) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <div className="h-screen bg-background flex items-center justify-center p-6">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -149,11 +154,9 @@ export default function Game() {
   const totalScore = session.rounds.reduce((sum, r) => sum + (r.score?.total || 0), 0);
 
   return (
-    <div className="min-h-screen bg-background relative">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_hsl(20_8%_4%/0.6)_100%)] pointer-events-none" />
-      
-      <header className="relative z-50 border-b border-border/30 bg-background/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
+      <header className="shrink-0 z-50 border-b border-border/30 bg-background/80 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Button 
               variant="ghost" 
@@ -165,7 +168,7 @@ export default function Game() {
             </Button>
             <div>
               <h1 className="font-display font-semibold text-lg">Executive Stories</h1>
-              <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-3 text-xs">
                 <span className="text-muted-foreground">
                   {session.mode === "solo" ? "Solo" : "Grupo"}
                 </span>
@@ -217,7 +220,7 @@ export default function Game() {
         </div>
       </header>
 
-      <main className="relative z-10 max-w-7xl mx-auto px-4 py-6">
+      <main className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
           {viewMode === "history" ? (
             <motion.div
@@ -226,16 +229,18 @@ export default function Game() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className="space-y-6"
+              className="h-full overflow-y-auto p-6"
             >
-              <SessionStats session={session} />
-              <SessionHistory 
-                session={session} 
-                onSelectRound={(round) => {
-                  setSelectedHistoryRound(round);
-                  setViewMode("game");
-                }}
-              />
+              <div className="max-w-4xl mx-auto space-y-6">
+                <SessionStats session={session} />
+                <SessionHistory 
+                  session={session} 
+                  onSelectRound={(round) => {
+                    setSelectedHistoryRound(round);
+                    setViewMode("game");
+                  }}
+                />
+              </div>
             </motion.div>
           ) : selectedHistoryRound ? (
             <motion.div
@@ -244,11 +249,14 @@ export default function Game() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
+              className="h-full overflow-y-auto p-6"
             >
-              <HistoryRoundView 
-                round={selectedHistoryRound} 
-                onBack={() => setSelectedHistoryRound(null)}
-              />
+              <div className="max-w-4xl mx-auto">
+                <HistoryRoundView 
+                  round={selectedHistoryRound} 
+                  onBack={() => setSelectedHistoryRound(null)}
+                />
+              </div>
             </motion.div>
           ) : showingCompletedRound && lastRound ? (
             <motion.div
@@ -257,12 +265,15 @@ export default function Game() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.3 }}
+              className="h-full overflow-y-auto p-6"
             >
-              <CompletedRoundView 
-                round={lastRound} 
-                onNewRound={handleStartNewRound}
-                isStarting={drawCardsMutation.isPending}
-              />
+              <div className="max-w-4xl mx-auto">
+                <CompletedRoundView 
+                  round={lastRound} 
+                  onNewRound={handleStartNewRound}
+                  isStarting={drawCardsMutation.isPending}
+                />
+              </div>
             </motion.div>
           ) : !hasActiveRound ? (
             <motion.div
@@ -271,6 +282,7 @@ export default function Game() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
+              className="h-full flex items-center justify-center"
             >
               <EmptyState onStartRound={handleStartNewRound} isLoading={drawCardsMutation.isPending} />
             </motion.div>
@@ -281,13 +293,23 @@ export default function Game() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
+              className="h-full"
             >
-              <ActiveRoundView
-                round={currentRound}
-                onSubmit={handleSubmitResponse}
-                onContinue={handleContinueFromCards}
-                isSubmitting={updateRoundMutation.isPending}
-              />
+              {currentRound.currentStep === "cards" ? (
+                <GameArena
+                  cards={currentRound.cards}
+                  currentStep={currentRound.currentStep}
+                  onProceedToResponse={handleProceedFromArena}
+                  roundNumber={currentRound.roundNumber}
+                />
+              ) : (
+                <ActiveRoundView
+                  round={currentRound}
+                  tableCards={activeTableCards}
+                  onSubmit={handleSubmitResponse}
+                  isSubmitting={updateRoundMutation.isPending}
+                />
+              )}
             </motion.div>
           ) : null}
         </AnimatePresence>
@@ -303,7 +325,7 @@ interface EmptyStateProps {
 
 function EmptyState({ onStartRound, isLoading }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
+    <div className="flex flex-col items-center justify-center text-center p-6">
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -434,12 +456,12 @@ function CompletedRoundView({ round, onNewRound, isStarting }: CompletedRoundVie
 
 interface ActiveRoundViewProps {
   round: GameRound;
+  tableCards: string[];
   onSubmit: (values: Record<string, string>) => void;
-  onContinue: () => void;
   isSubmitting: boolean;
 }
 
-function ActiveRoundView({ round, onSubmit, onContinue, isSubmitting }: ActiveRoundViewProps) {
+function ActiveRoundView({ round, tableCards, onSubmit, isSubmitting }: ActiveRoundViewProps) {
   const cards = round.cards;
   const cardArray = [
     { key: "context", card: cards.context, label: "Contexto" },
@@ -450,79 +472,63 @@ function ActiveRoundView({ round, onSubmit, onContinue, isSubmitting }: ActiveRo
     { key: "storytelling", card: cards.storytelling, label: "Storytelling" },
   ];
 
+  const focusedCards = tableCards.length > 0 
+    ? cardArray.filter(c => tableCards.includes(c.key))
+    : cardArray;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="font-display text-2xl font-semibold mb-1">Rodada {round.roundNumber}</h2>
-          <p className="text-sm text-muted-foreground">
-            Aja como executivo responsável por resolver essa situação.
-          </p>
-        </div>
-        <div className="overflow-x-auto">
+    <div className="h-full overflow-y-auto p-6">
+      <div className="max-w-5xl mx-auto space-y-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="font-display text-2xl font-semibold mb-1">Rodada {round.roundNumber}</h2>
+            <p className="text-sm text-muted-foreground">
+              Aja como executivo responsável por resolver essa situação.
+            </p>
+          </div>
           <GameStepIndicator currentStep={round.currentStep} />
         </div>
-      </div>
 
-      {round.currentStep === "cards" ? (
-        <div className="space-y-8">
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cardArray.map(({ key, card }, index) => (
-              <GameCard key={key} card={card} index={index} />
-            ))}
-          </div>
-          <div className="flex justify-center">
-            <Button 
-              size="lg" 
-              className="btn-game-primary text-primary-foreground font-semibold px-8"
-              onClick={onContinue}
-              disabled={isSubmitting}
-              data-testid="button-start-diagnosis"
-            >
-              <span className="flex items-center gap-2">
-                Iniciar Diagnóstico
-                <ArrowRight className="h-5 w-5" />
-              </span>
-            </Button>
-          </div>
-        </div>
-      ) : round.currentStep === "complete" ? (
-        <div className="grid lg:grid-cols-2 gap-8">
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Cartas desta Rodada</h3>
-            <div className="grid gap-3">
-              {cardArray.map(({ key, card }, index) => (
-                <GameCard key={key} card={card} isCompact index={index} />
-              ))}
-            </div>
-          </div>
-          <div>
-            {round.score && <ScoreDisplay score={round.score} />}
-          </div>
-        </div>
-      ) : (
-        <div className="grid lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-2 space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Cartas Sorteadas</h3>
-            <ScrollArea className="h-[calc(100vh-280px)]">
-              <div className="space-y-3 pr-4">
+        {round.currentStep === "complete" ? (
+          <div className="grid lg:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Cartas desta Rodada</h3>
+              <div className="grid gap-3">
                 {cardArray.map(({ key, card }, index) => (
                   <GameCard key={key} card={card} isCompact index={index} />
                 ))}
               </div>
-            </ScrollArea>
+            </div>
+            <div>
+              {round.score && <ScoreDisplay score={round.score} />}
+            </div>
           </div>
-          <div className="lg:col-span-3">
-            <ResponseForm
-              step={round.currentStep}
-              cards={cards}
-              initialValues={getInitialValues(round)}
-              onSubmit={onSubmit}
-              isSubmitting={isSubmitting}
-            />
+        ) : (
+          <div className="grid lg:grid-cols-5 gap-6">
+            <div className="lg:col-span-2 space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                {tableCards.length > 0 ? "Cartas em Foco" : "Todas as Cartas"}
+              </h3>
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <div className="space-y-3 pr-4">
+                  {focusedCards.map(({ key, card }, index) => (
+                    <GameCard key={key} card={card} isCompact index={index} />
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+            <div className="lg:col-span-3">
+              <ResponseForm
+                step={round.currentStep}
+                cards={cards}
+                initialValues={getInitialValues(round)}
+                onSubmit={onSubmit}
+                isSubmitting={isSubmitting}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
