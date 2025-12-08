@@ -1,13 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import { 
   Home, 
   Plus, 
@@ -15,15 +13,19 @@ import {
   ChevronLeft,
   Shuffle,
   History,
-  BarChart3,
-  Download
+  Download,
+  Zap,
+  Trophy,
+  Target,
+  Sparkles
 } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
 import { GameStepIndicator } from "@/components/GameStepIndicator";
 import { ResponseForm } from "@/components/ResponseForm";
 import { ScoreDisplay } from "@/components/ScoreDisplay";
 import { SessionHistory, SessionStats } from "@/components/SessionHistory";
-import type { GameSession, GameRound, DrawnCards } from "@shared/schema";
+import type { GameSession, GameRound } from "@shared/schema";
+import { motion, AnimatePresence } from "framer-motion";
 
 type ViewMode = "game" | "history";
 
@@ -104,13 +106,11 @@ export default function Game() {
     return (
       <div className="min-h-screen bg-background p-6">
         <div className="max-w-7xl mx-auto">
-          <Skeleton className="h-12 w-64 mb-8" />
+          <Skeleton className="h-16 w-full mb-8 rounded-xl" />
           <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              <Skeleton className="h-48" />
-              <Skeleton className="h-48" />
-            </div>
-            <Skeleton className="h-96" />
+            <Skeleton className="h-96 rounded-xl" />
+            <Skeleton className="h-96 rounded-xl" />
+            <Skeleton className="h-96 rounded-xl" />
           </div>
         </div>
       </div>
@@ -120,28 +120,40 @@ export default function Game() {
   if (error || !session) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <Card className="max-w-md w-full">
-          <CardContent className="p-8 text-center">
-            <h2 className="text-xl font-semibold mb-2">Sessão não encontrada</h2>
-            <p className="text-muted-foreground mb-4">
-              A sessão de jogo solicitada não existe ou foi removida.
-            </p>
-            <Button onClick={() => setLocation("/")} data-testid="button-go-home">
-              <Home className="h-4 w-4 mr-2" />
-              Voltar ao Início
-            </Button>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className="max-w-md w-full border-border/50 bg-card/80">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+                <Target className="h-8 w-8 text-destructive" />
+              </div>
+              <h2 className="font-display text-xl font-semibold mb-2">Sessão não encontrada</h2>
+              <p className="text-muted-foreground mb-6">
+                A sessão de jogo solicitada não existe ou foi removida.
+              </p>
+              <Button onClick={() => setLocation("/")} className="btn-game-primary" data-testid="button-go-home">
+                <Home className="h-4 w-4 mr-2" />
+                Voltar ao Início
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     );
   }
 
   const completedRoundsCount = session.rounds.filter(r => r.currentStep === "complete").length;
+  const totalScore = session.rounds.reduce((sum, r) => sum + (r.score?.total || 0), 0);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b sticky top-0 z-50 bg-background/95 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+    <div className="min-h-screen bg-background relative">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_hsl(20_8%_4%/0.6)_100%)] pointer-events-none" />
+      
+      <header className="relative z-50 border-b border-border/30 bg-background/80 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Button 
               variant="ghost" 
@@ -152,82 +164,133 @@ export default function Game() {
               <Home className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="font-semibold">Executive Stories</h1>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Badge variant="secondary" className="text-xs">
+              <h1 className="font-display font-semibold text-lg">Executive Stories</h1>
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-muted-foreground">
                   {session.mode === "solo" ? "Solo" : "Grupo"}
-                </Badge>
-                <span>{completedRoundsCount} rodadas completadas</span>
+                </span>
+                <span className="text-border">|</span>
+                <span className="text-muted-foreground">
+                  {completedRoundsCount} rodadas
+                </span>
               </div>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
+            {totalScore > 0 && (
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 mr-2">
+                <Trophy className="h-4 w-4 text-primary" />
+                <span className="font-mono-game text-sm font-semibold text-primary">{totalScore}</span>
+              </div>
+            )}
+            
             <Button
-              variant={viewMode === "game" ? "default" : "outline"}
+              variant={viewMode === "game" ? "default" : "ghost"}
               size="sm"
               onClick={() => { setViewMode("game"); setSelectedHistoryRound(null); }}
               data-testid="button-view-game"
             >
-              <Shuffle className="h-4 w-4 mr-2" />
-              Jogo
+              <Shuffle className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Jogo</span>
             </Button>
             <Button
-              variant={viewMode === "history" ? "default" : "outline"}
+              variant={viewMode === "history" ? "default" : "ghost"}
               size="sm"
               onClick={() => setViewMode("history")}
               data-testid="button-view-history"
             >
-              <History className="h-4 w-4 mr-2" />
-              Histórico
+              <History className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Histórico</span>
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               asChild
               data-testid="button-export-session"
             >
               <a href={`/api/sessions/${sessionId}/export`} download>
-                <Download className="h-4 w-4 mr-2" />
-                Exportar
+                <Download className="h-4 w-4" />
               </a>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6">
-        {viewMode === "history" ? (
-          <div className="space-y-6">
-            <SessionStats session={session} />
-            <SessionHistory 
-              session={session} 
-              onSelectRound={(round) => {
-                setSelectedHistoryRound(round);
-                setViewMode("game");
-              }}
-            />
-          </div>
-        ) : selectedHistoryRound ? (
-          <HistoryRoundView 
-            round={selectedHistoryRound} 
-            onBack={() => setSelectedHistoryRound(null)}
-          />
-        ) : showingCompletedRound && lastRound ? (
-          <CompletedRoundView 
-            round={lastRound} 
-            onNewRound={handleStartNewRound}
-            isStarting={drawCardsMutation.isPending}
-          />
-        ) : !hasActiveRound ? (
-          <EmptyState onStartRound={handleStartNewRound} isLoading={drawCardsMutation.isPending} />
-        ) : currentRound ? (
-          <ActiveRoundView
-            round={currentRound}
-            onSubmit={handleSubmitResponse}
-            onContinue={handleContinueFromCards}
-            isSubmitting={updateRoundMutation.isPending}
-          />
-        ) : null}
+      <main className="relative z-10 max-w-7xl mx-auto px-4 py-6">
+        <AnimatePresence mode="wait">
+          {viewMode === "history" ? (
+            <motion.div
+              key="history"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              <SessionStats session={session} />
+              <SessionHistory 
+                session={session} 
+                onSelectRound={(round) => {
+                  setSelectedHistoryRound(round);
+                  setViewMode("game");
+                }}
+              />
+            </motion.div>
+          ) : selectedHistoryRound ? (
+            <motion.div
+              key="history-round"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <HistoryRoundView 
+                round={selectedHistoryRound} 
+                onBack={() => setSelectedHistoryRound(null)}
+              />
+            </motion.div>
+          ) : showingCompletedRound && lastRound ? (
+            <motion.div
+              key="completed"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CompletedRoundView 
+                round={lastRound} 
+                onNewRound={handleStartNewRound}
+                isStarting={drawCardsMutation.isPending}
+              />
+            </motion.div>
+          ) : !hasActiveRound ? (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <EmptyState onStartRound={handleStartNewRound} isLoading={drawCardsMutation.isPending} />
+            </motion.div>
+          ) : currentRound ? (
+            <motion.div
+              key="active"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ActiveRoundView
+                round={currentRound}
+                onSubmit={handleSubmitResponse}
+                onContinue={handleContinueFromCards}
+                isSubmitting={updateRoundMutation.isPending}
+              />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </main>
     </div>
   );
@@ -240,29 +303,54 @@ interface EmptyStateProps {
 
 function EmptyState({ onStartRound, isLoading }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="p-4 rounded-full bg-primary/10 mb-6">
-        <Shuffle className="h-12 w-12 text-primary" />
-      </div>
-      <h2 className="text-2xl font-semibold mb-2">Pronto para começar?</h2>
-      <p className="text-muted-foreground mb-6 max-w-md">
-        Clique no botão abaixo para sortear suas cartas e iniciar uma nova rodada de treinamento executivo.
-      </p>
-      <Button 
-        size="lg" 
-        onClick={onStartRound}
-        disabled={isLoading}
-        data-testid="button-new-round"
+    <div className="flex flex-col items-center justify-center py-24 text-center">
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5, type: "spring" }}
+        className="mb-8"
       >
-        {isLoading ? (
-          "Sorteando..."
-        ) : (
-          <>
-            <Plus className="h-5 w-5 mr-2" />
-            Nova Rodada
-          </>
-        )}
-      </Button>
+        <div className="relative">
+          <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl" />
+          <div className="relative p-6 rounded-full bg-primary/10 border border-primary/20">
+            <Shuffle className="h-16 w-16 text-primary" />
+          </div>
+        </div>
+      </motion.div>
+      
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
+        <h2 className="font-display text-3xl font-semibold mb-3">Pronto para jogar?</h2>
+        <p className="text-muted-foreground mb-8 max-w-md">
+          Sorteie 6 cartas para iniciar uma nova rodada de treinamento executivo.
+        </p>
+        <Button 
+          size="lg" 
+          className="btn-game-primary text-primary-foreground font-semibold px-8"
+          onClick={onStartRound}
+          disabled={isLoading}
+          data-testid="button-draw-cards"
+        >
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <motion.div 
+                className="h-5 w-5 border-2 border-current border-t-transparent rounded-full"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              />
+              Sorteando...
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <Zap className="h-5 w-5" />
+              Sortear Cartas
+            </span>
+          )}
+        </Button>
+      </motion.div>
     </div>
   );
 }
@@ -285,40 +373,54 @@ function CompletedRoundView({ round, onNewRound, isStarting }: CompletedRoundVie
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-xl font-semibold">Rodada {round.roundNumber} - Completa</h2>
-          <p className="text-sm text-muted-foreground">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-emerald-400" />
+            </div>
+            <h2 className="font-display text-2xl font-semibold">Rodada {round.roundNumber} Completa</h2>
+          </div>
+          <p className="text-sm text-muted-foreground ml-13">
             {round.completedAt
-              ? `Completada em ${new Date(round.completedAt).toLocaleString("pt-BR")}`
+              ? new Date(round.completedAt).toLocaleString("pt-BR", { 
+                  dateStyle: "short", 
+                  timeStyle: "short" 
+                })
               : "Rodada finalizada"}
           </p>
         </div>
         <Button 
           onClick={onNewRound}
           disabled={isStarting}
-          data-testid="button-new-round-after-complete"
+          className="btn-game-primary text-primary-foreground"
+          data-testid="button-draw-cards"
         >
           {isStarting ? (
-            "Sorteando..."
+            <span className="flex items-center gap-2">
+              <motion.div 
+                className="h-4 w-4 border-2 border-current border-t-transparent rounded-full"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              />
+              Sorteando...
+            </span>
           ) : (
-            <>
-              <Plus className="h-4 w-4 mr-2" />
+            <span className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
               Nova Rodada
-            </>
+            </span>
           )}
         </Button>
       </div>
 
-      <Separator />
-
       <div className="grid lg:grid-cols-2 gap-8">
         <div className="space-y-4">
-          <h3 className="font-semibold">Cartas Sorteadas</h3>
+          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Cartas Sorteadas</h3>
           <div className="grid gap-3">
-            {cardArray.map(({ key, card }) => (
-              <GameCard key={key} card={card} isCompact />
+            {cardArray.map(({ key, card }, index) => (
+              <GameCard key={key} card={card} isCompact index={index} />
             ))}
           </div>
         </div>
@@ -352,9 +454,9 @@ function ActiveRoundView({ round, onSubmit, onContinue, isSubmitting }: ActiveRo
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-xl font-semibold">Rodada {round.roundNumber}</h2>
+          <h2 className="font-display text-2xl font-semibold mb-1">Rodada {round.roundNumber}</h2>
           <p className="text-sm text-muted-foreground">
-            Seu desafio é agir como executivo responsável por essa situação.
+            Aja como executivo responsável por resolver essa situação.
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -362,34 +464,35 @@ function ActiveRoundView({ round, onSubmit, onContinue, isSubmitting }: ActiveRo
         </div>
       </div>
 
-      <Separator />
-
       {round.currentStep === "cards" ? (
-        <div className="space-y-6">
+        <div className="space-y-8">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cardArray.map(({ key, card }) => (
-              <GameCard key={key} card={card} />
+            {cardArray.map(({ key, card }, index) => (
+              <GameCard key={key} card={card} index={index} />
             ))}
           </div>
           <div className="flex justify-center">
             <Button 
               size="lg" 
+              className="btn-game-primary text-primary-foreground font-semibold px-8"
               onClick={onContinue}
               disabled={isSubmitting}
               data-testid="button-start-diagnosis"
             >
-              Iniciar Diagnóstico
-              <ArrowRight className="h-5 w-5 ml-2" />
+              <span className="flex items-center gap-2">
+                Iniciar Diagnóstico
+                <ArrowRight className="h-5 w-5" />
+              </span>
             </Button>
           </div>
         </div>
       ) : round.currentStep === "complete" ? (
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid lg:grid-cols-2 gap-8">
           <div className="space-y-4">
-            <h3 className="font-semibold">Cartas desta Rodada</h3>
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Cartas desta Rodada</h3>
             <div className="grid gap-3">
-              {cardArray.map(({ key, card }) => (
-                <GameCard key={key} card={card} isCompact />
+              {cardArray.map(({ key, card }, index) => (
+                <GameCard key={key} card={card} isCompact index={index} />
               ))}
             </div>
           </div>
@@ -399,12 +502,12 @@ function ActiveRoundView({ round, onSubmit, onContinue, isSubmitting }: ActiveRo
         </div>
       ) : (
         <div className="grid lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-2 space-y-3">
-            <h3 className="font-semibold text-sm text-muted-foreground">Cartas Sorteadas</h3>
-            <ScrollArea className="h-[calc(100vh-300px)]">
+          <div className="lg:col-span-2 space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Cartas Sorteadas</h3>
+            <ScrollArea className="h-[calc(100vh-280px)]">
               <div className="space-y-3 pr-4">
-                {cardArray.map(({ key, card }) => (
-                  <GameCard key={key} card={card} isCompact />
+                {cardArray.map(({ key, card }, index) => (
+                  <GameCard key={key} card={card} isCompact index={index} />
                 ))}
               </div>
             </ScrollArea>
@@ -447,23 +550,24 @@ function HistoryRoundView({ round, onBack }: HistoryRoundViewProps) {
           <ChevronLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h2 className="text-xl font-semibold">Rodada {round.roundNumber}</h2>
+          <h2 className="font-display text-xl font-semibold">Rodada {round.roundNumber}</h2>
           <p className="text-sm text-muted-foreground">
             {round.completedAt
-              ? `Completada em ${new Date(round.completedAt).toLocaleString("pt-BR")}`
+              ? new Date(round.completedAt).toLocaleString("pt-BR", { 
+                  dateStyle: "short", 
+                  timeStyle: "short" 
+                })
               : "Histórico da rodada"}
           </p>
         </div>
       </div>
 
-      <Separator />
-
       <div className="grid lg:grid-cols-2 gap-8">
         <div className="space-y-4">
-          <h3 className="font-semibold">Cartas Sorteadas</h3>
+          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Cartas Sorteadas</h3>
           <div className="grid gap-3">
-            {cardArray.map(({ key, card }) => (
-              <GameCard key={key} card={card} isCompact />
+            {cardArray.map(({ key, card }, index) => (
+              <GameCard key={key} card={card} isCompact index={index} />
             ))}
           </div>
         </div>
@@ -472,26 +576,26 @@ function HistoryRoundView({ round, onBack }: HistoryRoundViewProps) {
           {round.score && <ScoreDisplay score={round.score} />}
 
           {round.response.diagnosis && (
-            <Card>
+            <Card className="border-border/50 bg-card/80">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Diagnóstico</CardTitle>
+                <CardTitle className="font-display text-lg">Diagnóstico</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 {round.response.diagnosis.contextDescription && (
                   <div>
-                    <h4 className="font-medium text-muted-foreground mb-1">Contexto e Problema</h4>
+                    <h4 className="font-medium text-muted-foreground mb-1 text-xs uppercase tracking-wider">Contexto e Problema</h4>
                     <p className="whitespace-pre-wrap">{round.response.diagnosis.contextDescription}</p>
                   </div>
                 )}
                 {round.response.diagnosis.mainRisks && (
                   <div>
-                    <h4 className="font-medium text-muted-foreground mb-1">Principais Riscos</h4>
+                    <h4 className="font-medium text-muted-foreground mb-1 text-xs uppercase tracking-wider">Principais Riscos</h4>
                     <p className="whitespace-pre-wrap">{round.response.diagnosis.mainRisks}</p>
                   </div>
                 )}
                 {round.response.diagnosis.opportunities && (
                   <div>
-                    <h4 className="font-medium text-muted-foreground mb-1">Oportunidades</h4>
+                    <h4 className="font-medium text-muted-foreground mb-1 text-xs uppercase tracking-wider">Oportunidades</h4>
                     <p className="whitespace-pre-wrap">{round.response.diagnosis.opportunities}</p>
                   </div>
                 )}
@@ -500,26 +604,26 @@ function HistoryRoundView({ round, onBack }: HistoryRoundViewProps) {
           )}
 
           {round.response.decision && (
-            <Card>
+            <Card className="border-border/50 bg-card/80">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Decisões</CardTitle>
+                <CardTitle className="font-display text-lg">Decisões</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 {round.response.decision.strategicDecisions && (
                   <div>
-                    <h4 className="font-medium text-muted-foreground mb-1">Decisões Estratégicas</h4>
+                    <h4 className="font-medium text-muted-foreground mb-1 text-xs uppercase tracking-wider">Decisões Estratégicas</h4>
                     <p className="whitespace-pre-wrap">{round.response.decision.strategicDecisions}</p>
                   </div>
                 )}
                 {round.response.decision.financialIndicators && (
                   <div>
-                    <h4 className="font-medium text-muted-foreground mb-1">Indicadores Financeiros</h4>
+                    <h4 className="font-medium text-muted-foreground mb-1 text-xs uppercase tracking-wider">Indicadores Financeiros</h4>
                     <p className="whitespace-pre-wrap">{round.response.decision.financialIndicators}</p>
                   </div>
                 )}
                 {round.response.decision.scenarios && (
                   <div>
-                    <h4 className="font-medium text-muted-foreground mb-1">Cenários</h4>
+                    <h4 className="font-medium text-muted-foreground mb-1 text-xs uppercase tracking-wider">Cenários</h4>
                     <p className="whitespace-pre-wrap">{round.response.decision.scenarios}</p>
                   </div>
                 )}
@@ -528,20 +632,20 @@ function HistoryRoundView({ round, onBack }: HistoryRoundViewProps) {
           )}
 
           {round.response.execution && (
-            <Card>
+            <Card className="border-border/50 bg-card/80">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Plano de Execução</CardTitle>
+                <CardTitle className="font-display text-lg">Plano de Execução</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 {round.response.execution.initiatives && (
                   <div>
-                    <h4 className="font-medium text-muted-foreground mb-1">Iniciativas</h4>
+                    <h4 className="font-medium text-muted-foreground mb-1 text-xs uppercase tracking-wider">Iniciativas</h4>
                     <p className="whitespace-pre-wrap">{round.response.execution.initiatives}</p>
                   </div>
                 )}
                 {round.response.execution.riskMitigation && (
                   <div>
-                    <h4 className="font-medium text-muted-foreground mb-1">Mitigação de Riscos</h4>
+                    <h4 className="font-medium text-muted-foreground mb-1 text-xs uppercase tracking-wider">Mitigação de Riscos</h4>
                     <p className="whitespace-pre-wrap">{round.response.execution.riskMitigation}</p>
                   </div>
                 )}
@@ -550,9 +654,9 @@ function HistoryRoundView({ round, onBack }: HistoryRoundViewProps) {
           )}
 
           {round.response.storytelling && (
-            <Card>
+            <Card className="border-border/50 bg-card/80">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Storytelling</CardTitle>
+                <CardTitle className="font-display text-lg">Storytelling</CardTitle>
               </CardHeader>
               <CardContent className="text-sm">
                 <p className="whitespace-pre-wrap">{round.response.storytelling.presentation}</p>

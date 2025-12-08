@@ -277,7 +277,19 @@ export class DatabaseStorage implements IStorage {
     if (step === "complete") {
       completedAt = new Date();
       round.completedAt = completedAt.toISOString();
-      round.score = await evaluateResponseWithAI(round.response, round.cards);
+      try {
+        round.score = await evaluateResponseWithAI(round.response, round.cards);
+      } catch (error) {
+        console.error("AI evaluation failed in updateRound:", error);
+        round.score = {
+          diagnosisClarity: 1,
+          financialCoherence: 1,
+          executionRobustness: 1,
+          storytellingQuality: 1,
+          total: 4,
+          feedback: "Avaliação automática. A análise completa da IA não está disponível no momento.",
+        };
+      }
     }
 
     await db

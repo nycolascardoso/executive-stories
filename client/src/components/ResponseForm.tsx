@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowRight, ArrowLeft, Save, Lightbulb } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArrowRight, ArrowLeft, Sparkles, Lightbulb, Zap } from "lucide-react";
 import type { DrawnCards } from "@shared/schema";
+import { motion } from "framer-motion";
 
 type GameStep = "cards" | "diagnosis" | "decision" | "execution" | "storytelling" | "complete";
 
@@ -32,8 +33,8 @@ function getStepConfig(step: GameStep, cards: DrawnCards): StepConfig | null {
   switch (step) {
     case "diagnosis":
       return {
-        title: "Diagnóstico Estruturado",
-        description: "Analise o cenário e identifique os pontos críticos da situação.",
+        title: "Diagnóstico",
+        description: "Analise o cenário e identifique os pontos críticos.",
         fields: [
           {
             key: "contextDescription",
@@ -49,102 +50,97 @@ function getStepConfig(step: GameStep, cards: DrawnCards): StepConfig | null {
           },
           {
             key: "opportunities",
-            label: "Oportunidades Embutidas",
+            label: "Oportunidades",
             placeholder: "Identifique 3 oportunidades escondidas neste cenário...",
             hint: "Toda crise traz oportunidades - quais são elas aqui?",
           },
         ],
         tips: [
-          "Conecte os elementos das diferentes cartas para ter uma visão holística",
+          "Conecte os elementos das diferentes cartas",
           "Seja específico e evite generalizações",
-          "Priorize os riscos por impacto e probabilidade",
+          "Priorize por impacto e probabilidade",
         ],
       };
     case "decision":
       return {
-        title: "Decisão Financeira & Estratégica",
-        description: "Defina as decisões estratégicas e os indicadores que você acompanhará.",
+        title: "Decisão Estratégica",
+        description: "Defina estratégias e indicadores financeiros.",
         fields: [
           {
             key: "strategicDecisions",
             label: "Decisões Estratégicas",
             placeholder: "Quais 3 decisões estratégicas você tomaria?...",
-            hint: `Considere a carta de Estratégia: ${cards.strategy.name}`,
+            hint: `Carta de Estratégia: ${cards.strategy.name}`,
           },
           {
             key: "financialIndicators",
             label: "Indicadores Financeiros",
-            placeholder: "Quais 3 indicadores financeiros você acompanharia de perto e por quê?...",
-            hint: `Considere a carta de Finanças: ${cards.finance.name}`,
+            placeholder: "Quais 3 indicadores você acompanharia e por quê?...",
+            hint: `Carta de Finanças: ${cards.finance.name}`,
           },
           {
             key: "scenarios",
-            label: "Cenários Financeiros",
-            placeholder: "Descreva brevemente os cenários pessimista, base e otimista...",
+            label: "Cenários",
+            placeholder: "Descreva cenários pessimista, base e otimista...",
             hint: "2-3 frases para cada cenário, com premissas claras.",
           },
         ],
         tips: [
           "O que você cortaria primeiro?",
-          "Onde você investiria mesmo com pouco caixa?",
-          "O que jamais cortaria para não matar o futuro do negócio?",
+          "Onde investiria mesmo com pouco caixa?",
+          "O que jamais cortaria?",
         ],
       };
     case "execution":
       return {
         title: "Plano de Execução",
-        description: "Defina iniciativas concretas e estratégias de mitigação de riscos.",
+        description: "Iniciativas concretas e mitigação de riscos.",
         fields: [
           {
             key: "initiatives",
             label: "Iniciativas e Projetos",
-            placeholder: "Liste 3 iniciativas/projetos concretos com: Nome, Dono (área/papel), Horizonte de tempo (curto, médio, longo)...",
-            hint: `Considere a carta de Projetos: ${cards.project.name}`,
+            placeholder: "Liste 3 iniciativas com: Nome, Dono, Horizonte de tempo...",
+            hint: `Carta de Projetos: ${cards.project.name}`,
           },
           {
             key: "riskMitigation",
             label: "Riscos e Mitigação",
-            placeholder: "Liste 3 riscos críticos com: Risco, Ação de mitigação, Indicador de que o risco está se materializando...",
-            hint: `Considere a carta de Governança: ${cards.governance.name}`,
+            placeholder: "Liste 3 riscos com: Risco, Ação de mitigação, Indicador de alerta...",
+            hint: `Carta de Governança: ${cards.governance.name}`,
           },
         ],
         tips: [
-          "Seja específico sobre quem é o dono de cada iniciativa",
-          "Defina indicadores claros para monitorar riscos",
-          "Considere dependências entre as iniciativas",
+          "Seja específico sobre o dono de cada iniciativa",
+          "Defina indicadores claros para monitorar",
+          "Considere dependências entre iniciativas",
         ],
       };
     case "storytelling":
       return {
         title: "Storytelling Executivo",
-        description: `Prepare sua apresentação de 2-3 minutos para: ${cards.storytelling.name}`,
+        description: `Apresentação para: ${cards.storytelling.name}`,
         fields: [
           {
             key: "presentation",
-            label: "Sua Apresentação",
-            placeholder: `Estruture sua narrativa em 5 partes:
+            label: "Sua Narrativa",
+            placeholder: `Estruture em 5 partes:
 
-1. CONTEXTO
-[Descreva a situação atual]
+1. CONTEXTO - Situação atual
 
-2. PROBLEMA / TENSÃO
-[Qual é o desafio central?]
+2. TENSÃO - Desafio central
 
-3. DECISÃO / TESE
-[Qual sua recomendação?]
+3. DECISÃO - Sua recomendação
 
-4. PLANO
-[Como você vai executar?]
+4. PLANO - Como executar
 
-5. PRÓXIMOS PASSOS E PEDIDO
-[O que você precisa do público?]`,
+5. PEDIDO - O que você precisa`,
             hint: cards.storytelling.challenge,
           },
         ],
         tips: [
-          "Evite jargões vazios e busque objetividade executiva",
+          "Evite jargões, busque objetividade",
           "Equilibre ambição com credibilidade",
-          "Adapte a mensagem ao seu público-alvo",
+          "Adapte ao seu público-alvo",
         ],
       };
     default:
@@ -183,22 +179,35 @@ export function ResponseForm({
   const isValid = config.fields.every(field => values[field.key]?.trim().length > 0);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6" data-testid={`form-${step}`}>
+    <motion.form 
+      onSubmit={handleSubmit} 
+      className="space-y-6" 
+      data-testid={`form-${step}`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
       <div className="space-y-1">
-        <h2 className="text-2xl font-semibold">{config.title}</h2>
-        <p className="text-muted-foreground">{config.description}</p>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Sparkles className="h-5 w-5 text-primary" />
+          </div>
+          <h2 className="font-display text-2xl font-semibold">{config.title}</h2>
+        </div>
+        <p className="text-muted-foreground ml-12">{config.description}</p>
       </div>
 
       {config.tips && config.tips.length > 0 && (
-        <Card className="bg-chart-2/5 border-chart-2/20">
+        <Card className="bg-emerald-500/5 border-emerald-500/20">
           <CardContent className="p-4">
             <div className="flex gap-3">
-              <Lightbulb className="h-5 w-5 text-chart-2 shrink-0 mt-0.5" />
+              <Lightbulb className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-medium text-sm mb-2">Perguntas para reflexão:</h4>
+                <h4 className="font-medium text-sm mb-2 text-emerald-400">Dicas</h4>
                 <ul className="space-y-1">
                   {config.tips.map((tip, i) => (
-                    <li key={i} className="text-sm text-muted-foreground">
+                    <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
+                      <span className="w-1 h-1 rounded-full bg-emerald-500/50" />
                       {tip}
                     </li>
                   ))}
@@ -210,36 +219,42 @@ export function ResponseForm({
       )}
 
       <div className="space-y-6">
-        {config.fields.map(field => (
-          <div key={field.key} className="space-y-2">
-            <label htmlFor={field.key} className="block font-medium">
-              {field.label}
+        {config.fields.map((field, index) => (
+          <motion.div 
+            key={field.key} 
+            className="space-y-3"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 * index }}
+          >
+            <label htmlFor={field.key} className="block">
+              <span className="font-medium">{field.label}</span>
+              {field.hint && (
+                <span className="block text-sm text-muted-foreground mt-1">{field.hint}</span>
+              )}
             </label>
-            {field.hint && (
-              <p className="text-sm text-muted-foreground">{field.hint}</p>
-            )}
             <Textarea
               id={field.key}
               value={values[field.key]}
               onChange={(e) => handleChange(field.key, e.target.value)}
               placeholder={field.placeholder}
-              className="min-h-32 resize-y"
+              className="min-h-32 resize-y bg-card/50 border-border/50 focus:border-primary/50 transition-colors"
               data-testid={`input-${field.key}`}
             />
             <div className="flex justify-end">
-              <span className="text-xs text-muted-foreground">
+              <span className="font-mono-game text-[10px] text-muted-foreground/60">
                 {values[field.key]?.length || 0} caracteres
               </span>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
 
-      <div className="flex items-center justify-between gap-4 pt-4 border-t">
+      <div className="flex items-center justify-between gap-4 pt-4 border-t border-border/30">
         {onBack ? (
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             onClick={onBack}
             disabled={isSubmitting}
             data-testid="button-back"
@@ -253,21 +268,31 @@ export function ResponseForm({
         <Button
           type="submit"
           disabled={!isValid || isSubmitting}
+          className={step === "storytelling" ? "btn-game-primary text-primary-foreground" : ""}
           data-testid="button-next"
         >
-          {step === "storytelling" ? (
-            <>
-              <Save className="h-4 w-4 mr-2" />
+          {isSubmitting ? (
+            <span className="flex items-center gap-2">
+              <motion.div 
+                className="h-4 w-4 border-2 border-current border-t-transparent rounded-full"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              />
+              Processando...
+            </span>
+          ) : step === "storytelling" ? (
+            <span className="flex items-center gap-2">
+              <Zap className="h-4 w-4" />
               Finalizar Rodada
-            </>
+            </span>
           ) : (
-            <>
+            <span className="flex items-center gap-2">
               Próximo
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </>
+              <ArrowRight className="h-4 w-4" />
+            </span>
           )}
         </Button>
       </div>
-    </form>
+    </motion.form>
   );
 }

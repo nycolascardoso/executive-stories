@@ -1,117 +1,151 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Trophy, Target, TrendingUp, MessageSquare, BarChart3 } from "lucide-react";
+import { Trophy, Target, TrendingUp, MessageSquare, BarChart3, Sparkles } from "lucide-react";
 import type { RoundScore } from "@shared/schema";
+import { motion } from "framer-motion";
 
 interface ScoreDisplayProps {
   score: RoundScore;
 }
 
 const CRITERIA = [
-  { key: "diagnosisClarity", label: "Clareza de Diagnóstico", icon: Target },
-  { key: "financialCoherence", label: "Coerência Financeira", icon: BarChart3 },
-  { key: "executionRobustness", label: "Robustez do Plano de Execução", icon: TrendingUp },
-  { key: "storytellingQuality", label: "Qualidade do Storytelling", icon: MessageSquare },
+  { key: "diagnosisClarity", label: "Diagnóstico", icon: Target, color: "text-amber-400" },
+  { key: "financialCoherence", label: "Finanças", icon: BarChart3, color: "text-cyan-400" },
+  { key: "executionRobustness", label: "Execução", icon: TrendingUp, color: "text-blue-400" },
+  { key: "storytellingQuality", label: "Storytelling", icon: MessageSquare, color: "text-pink-400" },
 ] as const;
 
-function getScoreLevel(total: number): { label: string; color: string; description: string } {
+function getScoreLevel(total: number): { label: string; color: string; bgColor: string; description: string } {
   if (total <= 4) {
     return {
       label: "Iniciante",
-      color: "bg-chart-3/10 text-chart-3 border-chart-3/20",
-      description: "Iniciante no cenário - continue praticando para desenvolver suas habilidades executivas.",
+      color: "text-orange-400",
+      bgColor: "bg-orange-500/10 border-orange-500/20",
+      description: "Continue praticando para desenvolver suas habilidades executivas.",
     };
   } else if (total <= 8) {
     return {
       label: "Intermediário",
-      color: "bg-chart-2/10 text-chart-2 border-chart-2/20",
-      description: "Boa estrutura, precisa refinar decisões - você está no caminho certo.",
+      color: "text-cyan-400",
+      bgColor: "bg-cyan-500/10 border-cyan-500/20",
+      description: "Boa estrutura, precisa refinar algumas decisões.",
     };
   } else {
     return {
       label: "Executivo",
-      color: "bg-chart-5/10 text-chart-5 border-chart-5/20",
-      description: "Nível executivo / consultor bem estruturado - excelente performance!",
+      color: "text-emerald-400",
+      bgColor: "bg-emerald-500/10 border-emerald-500/20",
+      description: "Excelente performance! Nível executivo bem estruturado.",
     };
   }
 }
 
-function getScoreColor(value: number): string {
-  if (value === 0) return "bg-destructive";
-  if (value === 1) return "bg-chart-3";
-  if (value === 2) return "bg-chart-2";
-  return "bg-chart-5";
+function getScoreBarColor(value: number): string {
+  if (value === 0) return "bg-red-500";
+  if (value === 1) return "bg-orange-500";
+  if (value === 2) return "bg-cyan-500";
+  return "bg-emerald-500";
 }
 
 export function ScoreDisplay({ score }: ScoreDisplayProps) {
   const level = getScoreLevel(score.total);
 
   return (
-    <div className="space-y-6" data-testid="score-display">
-      <Card>
-        <CardHeader className="pb-4">
+    <motion.div 
+      className="space-y-6" 
+      data-testid="score-display"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <Card className="border-border/50 bg-card/80 overflow-hidden">
+        <CardHeader className="pb-4 border-b border-border/30">
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <CardTitle className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-chart-5/10">
-                <Trophy className="h-6 w-6 text-chart-5" />
+            <CardTitle className="flex items-center gap-3 font-display">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Trophy className="h-5 w-5 text-primary" />
               </div>
-              Avaliação da Rodada
+              Avaliação
             </CardTitle>
-            <Badge className={`text-base px-4 py-1.5 ${level.color}`}>
-              {score.total}/12 pontos
+            <Badge className={`font-mono-game text-sm px-3 py-1 border ${level.bgColor} ${level.color}`}>
+              {score.total}/12
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
-            <div className="text-4xl font-bold">{score.total}</div>
-            <div className="flex-1">
-              <Badge className={level.color}>{level.label}</Badge>
-              <p className="text-sm text-muted-foreground mt-1">{level.description}</p>
+        <CardContent className="pt-6 space-y-6">
+          <motion.div 
+            className={`flex items-center gap-4 p-4 rounded-xl border ${level.bgColor}`}
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
+          >
+            <div className={`font-mono-game text-4xl font-bold ${level.color}`}>
+              {score.total}
             </div>
-          </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className={`h-4 w-4 ${level.color}`} />
+                <span className={`font-semibold ${level.color}`}>{level.label}</span>
+              </div>
+              <p className="text-sm text-muted-foreground">{level.description}</p>
+            </div>
+          </motion.div>
 
           <div className="space-y-4">
-            <h4 className="font-medium">Critérios de Avaliação</h4>
-            <div className="grid gap-3">
-              {CRITERIA.map(({ key, label, icon: Icon }) => {
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Critérios</h4>
+            <div className="grid gap-4">
+              {CRITERIA.map(({ key, label, icon: Icon, color }, index) => {
                 const value = score[key as keyof typeof score] as number;
                 return (
-                  <div key={key} className="space-y-2">
+                  <motion.div 
+                    key={key} 
+                    className="space-y-2"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: 0.1 * index }}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <Icon className="h-4 w-4 text-muted-foreground" />
+                        <Icon className={`h-4 w-4 ${color}`} />
                         <span className="text-sm font-medium">{label}</span>
                       </div>
-                      <span className="text-sm font-semibold">{value}/3</span>
+                      <span className="font-mono-game text-sm font-semibold">{value}/3</span>
                     </div>
                     <div className="flex gap-1">
-                      {[0, 1, 2, 3].map(i => (
-                        <div
+                      {[0, 1, 2].map(i => (
+                        <motion.div
                           key={i}
-                          className={`h-2 flex-1 rounded-sm ${
-                            i < value ? getScoreColor(value) : "bg-muted"
+                          className={`h-1.5 flex-1 rounded-full ${
+                            i < value ? getScoreBarColor(value) : "bg-muted"
                           }`}
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: 1 }}
+                          transition={{ duration: 0.3, delay: 0.2 + 0.1 * index + 0.05 * i }}
+                          style={{ transformOrigin: "left" }}
                         />
                       ))}
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
           </div>
 
           {score.feedback && (
-            <div className="border-t pt-4 space-y-2">
-              <h4 className="font-medium">Feedback</h4>
-              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+            <motion.div 
+              className="border-t border-border/30 pt-4 space-y-2"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.6 }}
+            >
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Feedback da IA</h4>
+              <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
                 {score.feedback}
               </p>
-            </div>
+            </motion.div>
           )}
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   );
 }

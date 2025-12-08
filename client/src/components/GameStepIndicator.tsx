@@ -1,4 +1,5 @@
-import { Check, Circle } from "lucide-react";
+import { Check } from "lucide-react";
+import { motion } from "framer-motion";
 
 type GameStep = "cards" | "diagnosis" | "decision" | "execution" | "storytelling" | "complete";
 
@@ -9,11 +10,11 @@ interface StepInfo {
 }
 
 const STEPS: StepInfo[] = [
-  { key: "cards", label: "Cartas Sorteadas", shortLabel: "Cartas" },
-  { key: "diagnosis", label: "Diagnóstico", shortLabel: "Diagnóstico" },
-  { key: "decision", label: "Decisão", shortLabel: "Decisão" },
-  { key: "execution", label: "Execução", shortLabel: "Execução" },
-  { key: "storytelling", label: "Storytelling", shortLabel: "Story" },
+  { key: "cards", label: "Cartas", shortLabel: "1" },
+  { key: "diagnosis", label: "Diagnóstico", shortLabel: "2" },
+  { key: "decision", label: "Decisão", shortLabel: "3" },
+  { key: "execution", label: "Execução", shortLabel: "4" },
+  { key: "storytelling", label: "Storytelling", shortLabel: "5" },
 ];
 
 interface GameStepIndicatorProps {
@@ -26,41 +27,41 @@ export function GameStepIndicator({ currentStep, onStepClick }: GameStepIndicato
   const isComplete = currentStep === "complete";
 
   return (
-    <div className="flex items-center gap-1 md:gap-2" data-testid="step-indicator">
+    <div className="flex items-center gap-1" data-testid="step-indicator">
       {STEPS.map((step, index) => {
         const isCompleted = isComplete || index < currentIndex;
         const isCurrent = index === currentIndex && !isComplete;
-        const isPending = index > currentIndex && !isComplete;
 
         return (
           <div key={step.key} className="flex items-center">
-            <button
-              className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 md:py-2 rounded-md transition-colors ${
+            <motion.button
+              className={`flex items-center gap-1.5 px-2 py-1 md:px-3 md:py-1.5 rounded-lg transition-colors ${
                 isCompleted
-                  ? "bg-chart-5/10 text-chart-5"
+                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                   : isCurrent
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground"
-              } ${onStepClick && isCompleted ? "cursor-pointer hover-elevate" : ""}`}
+                  ? "bg-primary/10 text-primary border border-primary/20 font-medium"
+                  : "text-muted-foreground/50"
+              } ${onStepClick && isCompleted ? "cursor-pointer" : "cursor-default"}`}
               onClick={() => onStepClick && isCompleted && onStepClick(step.key)}
               disabled={!onStepClick || !isCompleted}
               data-testid={`step-${step.key}`}
+              whileHover={onStepClick && isCompleted ? { scale: 1.02 } : {}}
+              whileTap={onStepClick && isCompleted ? { scale: 0.98 } : {}}
             >
-              <span className={`flex items-center justify-center w-5 h-5 md:w-6 md:h-6 rounded-full text-xs font-medium ${
+              <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono-game font-medium ${
                 isCompleted
-                  ? "bg-chart-5 text-white"
+                  ? "bg-emerald-500 text-white"
                   : isCurrent
                   ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
+                  : "bg-muted/50 text-muted-foreground/50"
               }`}>
                 {isCompleted ? <Check className="w-3 h-3" /> : index + 1}
               </span>
-              <span className="hidden md:inline text-sm">{step.label}</span>
-              <span className="md:hidden text-xs">{step.shortLabel}</span>
-            </button>
+              <span className="hidden lg:inline text-xs">{step.label}</span>
+            </motion.button>
             {index < STEPS.length - 1 && (
-              <div className={`w-4 md:w-8 h-0.5 mx-1 ${
-                isCompleted ? "bg-chart-5" : "bg-muted"
+              <div className={`w-3 md:w-6 h-px mx-0.5 ${
+                isCompleted ? "bg-emerald-500/50" : "bg-border/30"
               }`} />
             )}
           </div>
