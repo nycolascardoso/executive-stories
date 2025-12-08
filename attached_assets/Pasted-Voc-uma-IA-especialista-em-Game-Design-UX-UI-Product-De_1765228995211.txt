@@ -1,0 +1,261 @@
+Você é uma IA especialista em Game Design, UX/UI, Product Design, Front-end, Back-end, IA Conversacional, Speech-to-Text e Avaliação de Performance Executiva.
+Seu objetivo é criar o jogo digital “Executive Balatro”, um simulador corporativo em forma de card game, inspirado fortemente no estilo visual, sensação de jogo e organização de interface do Balatro, porém com regras voltadas a estratégia, finanças, projetos, governança e storytelling executivo.
+
+1. CONCEITO GERAL DO JOGO
+
+Nome: Executive Balatro
+Categoria: Serious Game, Simulador Executivo, Card Game Estratégico
+Público: Executivos, gestores, consultores, FP&A, founders, PMO, MBAs
+Objetivo do jogador:
+Tomar decisões estratégicas sob pressão, resolver cenários financeiros, executar projetos complexos, gerir riscos e apresentar narrativas executivas persuasivas — tudo através de cartas.
+
+2. INSPIRAÇÃO VISUAL & INTERFACE (BALATRO-LIKE)
+
+A interface deve seguir estes princípios:
+
+2.1 Estilo Visual
+
+Fundo escuro elegante (preto, grafite, vinho, verde escuro)
+
+Cartas em destaque com:
+
+Bordas iluminadas
+
+Glow sutil
+
+Animações suaves ao virar, puxar e descartar
+
+Tipografia moderna, limpa e legível
+
+Som sutil ao puxar cartas (feedback sensorial)
+
+2.2 Organização da Tela (Padrão Balatro)
+
+A tela principal deve conter:
+
+Topo:
+
+Nome da rodada
+
+Tipo de cenário (estratégia, crise, crescimento, turnaround)
+
+Pontuação atual
+
+Centro (mesa):
+
+6 cartas visíveis:
+
+Contexto
+
+Estratégia
+
+Finanças
+
+Projetos
+
+Governança
+
+Storytelling
+
+Lado esquerdo:
+
+Painel de diagnóstico
+
+Resumo das decisões tomadas
+
+Lado direito:
+
+Avaliação de desempenho (pontuação em tempo real)
+
+Indicadores executivos simulados (caixa, margem, risco, moral do time)
+
+Rodapé:
+
+Botão:
+
+“Nova Rodada”
+
+“Enviar Discurso por Voz”
+
+“Enviar Resposta por Texto”
+
+“Avaliar Performance”
+
+3. SISTEMA DE CARTAS (ENGINE DE JOGO)
+
+O jogo possui exatamente estes 6 baralhos ativos:
+
+Contexto & Empresa
+
+Estratégia
+
+Finanças
+
+Projetos
+
+Governança
+
+Storytelling
+
+Cada rodada:
+
+Sorteia 1 carta de cada baralho
+
+Renderiza todas com animação
+
+Exibe:
+
+Nome
+
+Descrição
+
+Pergunta-desafio
+
+O jogador:
+
+Não escolhe as cartas inicialmente
+
+Ele reage ao cenário sorteado
+
+Em versões futuras, poderá construir seu próprio deck (modo carreira)
+
+4. FLUXO DE UMA RODADA (COM DESIGN DE JOGO)
+Fase 1 — Sorteio Cinemático
+
+Cartas entram na mesa com animações suaves
+
+Música ambiente leve
+
+Destaque na carta de Contexto primeiro, depois as demais em cascata
+
+Fase 2 — Diagnóstico
+
+Jogador responde:
+
+Diagnóstico do problema
+
+Riscos
+
+Oportunidades
+
+Pode:
+✅ Digitar
+✅ Falar (voz)
+
+Fase 3 — Decisão Estratégico-Financeira
+
+Jogador define:
+
+Estratégia principal
+
+3 decisões financeiras
+
+Indicadores críticos
+
+Fase 4 — Execução & Risco
+
+Jogador propõe:
+
+Projetos
+
+Donos
+
+Prazo
+
+Mitigações
+
+Fase 5 — Storytelling Executivo (DISCURSO)
+
+Jogador pode:
+✅ Digitar a apresentação
+✅ Clicar no botão 🎙️ “FALAR DISCURSO”
+
+A IA:
+
+Transcreve a fala automaticamente (Speech-to-Text)
+
+Salva como narrativa da rodada
+
+Usa como base para avaliação
+
+5. SISTEMA DE AVALIAÇÃO INTELIGENTE (IA JUIZ)
+
+Após o discurso, a IA avalia automaticamente:
+
+Critérios (nota 0 a 10 cada):
+
+Clareza estratégica
+
+Coerência financeira
+
+Realismo de execução
+
+Gestão de risco
+
+Qualidade do storytelling
+
+Confiança e objetividade da fala
+
+Estrutura narrativa (início-meio-fim)
+
+Persuasão executiva
+
+Resultado:
+
+Nota final (0 a 80)
+
+Classificação:
+
+Júnior
+
+Pleno
+
+Sênior
+
+Executivo
+
+Board-Level
+
+A IA gera:
+
+Feedback técnico
+
+Feedback de comunicação
+
+Pontos de melhoria
+
+Pontos fortes
+
+6. SISTEMA DE VOZ (OBRIGATÓRIO)
+
+Implementar obrigatoriamente:
+
+6.1 Entrada por Voz
+
+Gravação direto no navegador/app
+
+Botão grande e destacado 🎙️
+
+Indicador visual de captação
+
+6.2 Transcrição
+
+Conversão automática da fala em texto
+
+Exibição da transcrição para o jogador validar
+
+6.3 Avaliação por Voz
+
+A IA deve:
+
+Avaliar:
+
+Tom de voz
+
+Clareza
+
+Hesitações
+
+Uso excessivo de muletas (“é…”, “tipo…”, “então…”)
+
+Correlacionar com qualidade executiva
