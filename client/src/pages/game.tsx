@@ -15,7 +15,8 @@ import {
   ChevronLeft,
   Shuffle,
   History,
-  BarChart3
+  BarChart3,
+  Download
 } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
 import { GameStepIndicator } from "@/components/GameStepIndicator";
@@ -40,7 +41,7 @@ export default function Game() {
   const drawCardsMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", `/api/sessions/${sessionId}/rounds`);
-      return response as GameRound;
+      return await response.json() as GameRound;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId] });
@@ -57,7 +58,7 @@ export default function Game() {
         step,
         response,
       });
-      return res as GameRound;
+      return await res.json() as GameRound;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId] });
@@ -178,6 +179,17 @@ export default function Game() {
             >
               <History className="h-4 w-4 mr-2" />
               Histórico
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              data-testid="button-export-session"
+            >
+              <a href={`/api/sessions/${sessionId}/export`} download>
+                <Download className="h-4 w-4 mr-2" />
+                Exportar
+              </a>
             </Button>
           </div>
         </div>

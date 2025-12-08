@@ -1,149 +1,233 @@
 import { randomUUID } from "crypto";
-import type { 
-  GameSession, 
-  GameRound, 
-  DrawnCards,
-  RoundResponse,
-  RoundScore,
-  CreateSession
+import { db } from "./db";
+import { eq } from "drizzle-orm";
+import { 
+  users, 
+  gameSessions, 
+  rounds,
+  type User,
+  type UpsertUser,
+  type GameSession, 
+  type GameRound, 
+  type DrawnCards,
+  type RoundResponse,
+  type RoundScore,
+  type CreateSession,
+  type GameStep
 } from "@shared/schema";
 import { drawRandomCards } from "@shared/cardData";
+import { evaluateResponseWithAI } from "./aiService";
 
 export interface IStorage {
-  createSession(data: CreateSession): Promise<GameSession>;
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  createSession(data: CreateSession, userId?: string): Promise<GameSession>;
   getSession(id: string): Promise<GameSession | undefined>;
-  getAllSessions(): Promise<GameSession[]>;
+  getAllSessions(userId?: string): Promise<GameSession[]>;
+  getUserStats(userId: string): Promise<{ totalRounds: number; avgScore: number; bestScore: number; roundsCompleted: number }>;
   createRound(sessionId: string): Promise<GameRound | undefined>;
   updateRound(sessionId: string, roundId: string, step: string, response: Record<string, string>): Promise<GameRound | undefined>;
 }
 
-function calculateScore(response: RoundResponse): RoundScore {
-  let diagnosisClarity = 0;
-  let financialCoherence = 0;
-  let executionRobustness = 0;
-  let storytellingQuality = 0;
-
-  if (response.diagnosis) {
-    const d = response.diagnosis;
-    if (d.contextDescription && d.contextDescription.length > 50) diagnosisClarity++;
-    if (d.contextDescription && d.contextDescription.length > 150) diagnosisClarity++;
-    if (d.mainRisks && d.mainRisks.length > 50) diagnosisClarity++;
-    diagnosisClarity = Math.min(diagnosisClarity, 3);
+export class DatabaseStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
-  if (response.decision) {
-    const d = response.decision;
-    if (d.strategicDecisions && d.strategicDecisions.length > 50) financialCoherence++;
-    if (d.financialIndicators && d.financialIndicators.length > 50) financialCoherence++;
-    if (d.scenarios && d.scenarios.length > 100) financialCoherence++;
-    financialCoherence = Math.min(financialCoherence, 3);
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
   }
 
-  if (response.execution) {
-    const e = response.execution;
-    if (e.initiatives && e.initiatives.length > 100) executionRobustness++;
-    if (e.initiatives && e.initiatives.length > 200) executionRobustness++;
-    if (e.riskMitigation && e.riskMitigation.length > 100) executionRobustness++;
-    executionRobustness = Math.min(executionRobustness, 3);
-  }
-
-  if (response.storytelling) {
-    const s = response.storytelling;
-    if (s.presentation && s.presentation.length > 100) storytellingQuality++;
-    if (s.presentation && s.presentation.length > 300) storytellingQuality++;
-    if (s.presentation && s.presentation.length > 500) storytellingQuality++;
-    storytellingQuality = Math.min(storytellingQuality, 3);
-  }
-
-  const total = diagnosisClarity + financialCoherence + executionRobustness + storytellingQuality;
-
-  let feedback = "";
-  if (total <= 4) {
-    feedback = "Iniciante no cenário. Suas respostas estão no caminho certo, mas podem ser mais detalhadas e estruturadas. Tente ser mais específico em cada etapa e considere como os diferentes elementos do cenário se conectam.";
-  } else if (total <= 8) {
-    feedback = "Boa estrutura, precisa refinar decisões. Você demonstra compreensão do cenário e apresenta análises relevantes. Para avançar, aprofunde a conexão entre diagnóstico, decisões e plano de execução. Seu storytelling pode ser mais impactante.";
-  } else {
-    feedback = "Nível executivo / consultor bem estruturado. Excelente análise! Você demonstra visão estratégica, coerência financeira e capacidade de comunicar decisões de forma clara e persuasiva. Continue praticando para manter a excelência.";
-  }
-
-  return {
-    diagnosisClarity,
-    financialCoherence,
-    executionRobustness,
-    storytellingQuality,
-    total,
-    feedback,
-  };
-}
-
-export class MemStorage implements IStorage {
-  private sessions: Map<string, GameSession>;
-
-  constructor() {
-    this.sessions = new Map();
-  }
-
-  async createSession(data: CreateSession): Promise<GameSession> {
+  async createSession(data: CreateSession, userId?: string): Promise<GameSession> {
     const id = randomUUID();
-    const now = new Date().toISOString();
-    
-    const session: GameSession = {
+    const now = new Date();
+
+    await db.insert(gameSessions).values({
       id,
+      userId: userId || null,
       mode: data.mode,
       playerCount: data.playerCount || 1,
-      rounds: [],
+      difficulty: data.difficulty || "medium",
       createdAt: now,
       updatedAt: now,
-    };
+    });
 
-    this.sessions.set(id, session);
-    return session;
+    return {
+      id,
+      odidUserId: userId,
+      mode: data.mode,
+      playerCount: data.playerCount || 1,
+      difficulty: data.difficulty || "medium",
+      rounds: [],
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
   }
 
   async getSession(id: string): Promise<GameSession | undefined> {
-    return this.sessions.get(id);
+    const [session] = await db.select().from(gameSessions).where(eq(gameSessions.id, id));
+    if (!session) return undefined;
+
+    const sessionRounds = await db
+      .select()
+      .from(rounds)
+      .where(eq(rounds.sessionId, id))
+      .orderBy(rounds.roundNumber);
+
+    const gameRounds: GameRound[] = sessionRounds.map(r => ({
+      id: r.id,
+      roundNumber: r.roundNumber,
+      cards: r.cards as DrawnCards,
+      response: (r.response || {}) as RoundResponse,
+      score: r.score as RoundScore | undefined,
+      currentStep: r.currentStep as GameStep,
+      completedAt: r.completedAt?.toISOString(),
+    }));
+
+    return {
+      id: session.id,
+      odidUserId: session.userId || undefined,
+      mode: session.mode as "solo" | "group",
+      playerCount: session.playerCount,
+      difficulty: session.difficulty as "easy" | "medium" | "hard" | undefined,
+      rounds: gameRounds,
+      createdAt: session.createdAt.toISOString(),
+      updatedAt: session.updatedAt.toISOString(),
+    };
   }
 
-  async getAllSessions(): Promise<GameSession[]> {
-    return Array.from(this.sessions.values());
+  async getAllSessions(userId?: string): Promise<GameSession[]> {
+    let query;
+    if (userId) {
+      query = await db.select().from(gameSessions).where(eq(gameSessions.userId, userId));
+    } else {
+      query = await db.select().from(gameSessions);
+    }
+
+    const allSessions: GameSession[] = [];
+    for (const session of query) {
+      const sessionRounds = await db
+        .select()
+        .from(rounds)
+        .where(eq(rounds.sessionId, session.id))
+        .orderBy(rounds.roundNumber);
+
+      const gameRounds: GameRound[] = sessionRounds.map(r => ({
+        id: r.id,
+        roundNumber: r.roundNumber,
+        cards: r.cards as DrawnCards,
+        response: (r.response || {}) as RoundResponse,
+        score: r.score as RoundScore | undefined,
+        currentStep: r.currentStep as GameStep,
+        completedAt: r.completedAt?.toISOString(),
+      }));
+
+      allSessions.push({
+        id: session.id,
+        odidUserId: session.userId || undefined,
+        mode: session.mode as "solo" | "group",
+        playerCount: session.playerCount,
+        difficulty: session.difficulty as "easy" | "medium" | "hard" | undefined,
+        rounds: gameRounds,
+        createdAt: session.createdAt.toISOString(),
+        updatedAt: session.updatedAt.toISOString(),
+      });
+    }
+
+    return allSessions;
+  }
+
+  async getUserStats(userId: string): Promise<{ totalRounds: number; avgScore: number; bestScore: number; roundsCompleted: number }> {
+    const userSessions = await this.getAllSessions(userId);
+    
+    let totalRounds = 0;
+    let roundsCompleted = 0;
+    let totalScore = 0;
+    let bestScore = 0;
+
+    for (const session of userSessions) {
+      for (const round of session.rounds) {
+        totalRounds++;
+        if (round.currentStep === "complete" && round.score) {
+          roundsCompleted++;
+          totalScore += round.score.total;
+          if (round.score.total > bestScore) {
+            bestScore = round.score.total;
+          }
+        }
+      }
+    }
+
+    return {
+      totalRounds,
+      roundsCompleted,
+      avgScore: roundsCompleted > 0 ? Math.round((totalScore / roundsCompleted) * 10) / 10 : 0,
+      bestScore,
+    };
   }
 
   async createRound(sessionId: string): Promise<GameRound | undefined> {
-    const session = this.sessions.get(sessionId);
+    const session = await this.getSession(sessionId);
     if (!session) return undefined;
 
     const roundNumber = session.rounds.length + 1;
-    const cards = drawRandomCards();
+    const cards = drawRandomCards(session.difficulty);
+    const id = randomUUID();
 
-    const round: GameRound = {
-      id: randomUUID(),
+    await db.insert(rounds).values({
+      id,
+      sessionId,
+      roundNumber,
+      cards,
+      response: {},
+      currentStep: "cards",
+    });
+
+    await db
+      .update(gameSessions)
+      .set({ updatedAt: new Date() })
+      .where(eq(gameSessions.id, sessionId));
+
+    return {
+      id,
       roundNumber,
       cards,
       response: {},
       currentStep: "cards",
     };
-
-    session.rounds.push(round);
-    session.updatedAt = new Date().toISOString();
-    this.sessions.set(sessionId, session);
-
-    return round;
   }
 
   async updateRound(
-    sessionId: string, 
-    roundId: string, 
-    step: string, 
+    sessionId: string,
+    roundId: string,
+    step: string,
     response: Record<string, string>
   ): Promise<GameRound | undefined> {
-    const session = this.sessions.get(sessionId);
-    if (!session) return undefined;
+    const [existingRound] = await db.select().from(rounds).where(eq(rounds.id, roundId));
+    if (!existingRound || existingRound.sessionId !== sessionId) return undefined;
 
-    const roundIndex = session.rounds.findIndex(r => r.id === roundId);
-    if (roundIndex === -1) return undefined;
+    const round: GameRound = {
+      id: existingRound.id,
+      roundNumber: existingRound.roundNumber,
+      cards: existingRound.cards as DrawnCards,
+      response: (existingRound.response || {}) as RoundResponse,
+      score: existingRound.score as RoundScore | undefined,
+      currentStep: existingRound.currentStep as GameStep,
+      completedAt: existingRound.completedAt?.toISOString(),
+    };
 
-    const round = session.rounds[roundIndex];
-    
     const stepOrder = ["cards", "diagnosis", "decision", "execution", "storytelling", "complete"];
     const currentIndex = stepOrder.indexOf(round.currentStep);
     const nextIndex = stepOrder.indexOf(step);
@@ -187,19 +271,32 @@ export class MemStorage implements IStorage {
         break;
     }
 
-    round.currentStep = step as GameRound["currentStep"];
+    round.currentStep = step as GameStep;
 
+    let completedAt: Date | null = null;
     if (step === "complete") {
-      round.completedAt = new Date().toISOString();
-      round.score = calculateScore(round.response);
+      completedAt = new Date();
+      round.completedAt = completedAt.toISOString();
+      round.score = await evaluateResponseWithAI(round.response, round.cards);
     }
 
-    session.rounds[roundIndex] = round;
-    session.updatedAt = new Date().toISOString();
-    this.sessions.set(sessionId, session);
+    await db
+      .update(rounds)
+      .set({
+        response: round.response,
+        currentStep: round.currentStep,
+        score: round.score || null,
+        completedAt,
+      })
+      .where(eq(rounds.id, roundId));
+
+    await db
+      .update(gameSessions)
+      .set({ updatedAt: new Date() })
+      .where(eq(gameSessions.id, sessionId));
 
     return round;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

@@ -451,16 +451,54 @@ export const ALL_CARDS: Card[] = [
   }
 ];
 
+const CARD_COMPLEXITY: Record<string, "easy" | "medium" | "hard"> = {
+  C1: "medium", C2: "hard", C3: "medium", C4: "hard", C5: "easy",
+  C6: "hard", C7: "medium", C8: "hard", C9: "hard", C10: "easy",
+  E1: "medium", E2: "easy", E3: "medium", E4: "easy", E5: "easy",
+  E6: "hard", E7: "hard", E8: "medium", E9: "hard", E10: "hard",
+  F1: "easy", F2: "hard", F3: "medium", F4: "hard", F5: "medium",
+  F6: "easy", F7: "hard", F8: "hard", F9: "medium", F10: "hard",
+  P1: "easy", P2: "medium", P3: "hard", P4: "medium", P5: "medium",
+  P6: "hard", P7: "hard", P8: "medium", P9: "hard", P10: "easy",
+  G1: "hard", G2: "hard", G3: "medium", G4: "hard", G5: "hard",
+  G6: "easy", G7: "hard", G8: "easy", G9: "medium", G10: "medium",
+  S1: "easy", S2: "medium", S3: "hard", S4: "medium", S5: "hard",
+  S6: "easy", S7: "medium", S8: "hard", S9: "easy", S10: "hard",
+};
+
+export function getCardComplexity(cardId: string): "easy" | "medium" | "hard" {
+  return CARD_COMPLEXITY[cardId] || "medium";
+}
+
 export function getCardsByDeck(deckType: DeckType): Card[] {
   return ALL_CARDS.filter(card => card.deckType === deckType);
 }
 
-export function getRandomCard(deckType: DeckType): Card {
+export function getCardsByDeckAndDifficulty(deckType: DeckType, difficulty?: "easy" | "medium" | "hard"): Card[] {
   const cards = getCardsByDeck(deckType);
+  if (!difficulty) return cards;
+  
+  if (difficulty === "easy") {
+    return cards.filter(card => {
+      const complexity = getCardComplexity(card.id);
+      return complexity === "easy" || complexity === "medium";
+    });
+  } else if (difficulty === "medium") {
+    return cards;
+  } else {
+    return cards.filter(card => {
+      const complexity = getCardComplexity(card.id);
+      return complexity === "medium" || complexity === "hard";
+    });
+  }
+}
+
+export function getRandomCard(deckType: DeckType, difficulty?: "easy" | "medium" | "hard"): Card {
+  const cards = getCardsByDeckAndDifficulty(deckType, difficulty);
   return cards[Math.floor(Math.random() * cards.length)];
 }
 
-export function drawRandomCards(): {
+export function drawRandomCards(difficulty?: "easy" | "medium" | "hard"): {
   context: Card;
   strategy: Card;
   finance: Card;
@@ -469,11 +507,11 @@ export function drawRandomCards(): {
   storytelling: Card;
 } {
   return {
-    context: getRandomCard("C"),
-    strategy: getRandomCard("E"),
-    finance: getRandomCard("F"),
-    project: getRandomCard("P"),
-    governance: getRandomCard("G"),
-    storytelling: getRandomCard("S"),
+    context: getRandomCard("C", difficulty),
+    strategy: getRandomCard("E", difficulty),
+    finance: getRandomCard("F", difficulty),
+    project: getRandomCard("P", difficulty),
+    governance: getRandomCard("G", difficulty),
+    storytelling: getRandomCard("S", difficulty),
   };
 }

@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   PlayCircle, 
   Users, 
@@ -14,10 +15,15 @@ import {
   MessageSquare,
   Target,
   Trophy,
-  Clock
+  Clock,
+  LogIn,
+  LogOut,
+  User,
+  TrendingUp
 } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 import type { GameSession } from "@shared/schema";
 
 const DECK_FEATURES = [
@@ -36,17 +42,31 @@ const GAME_STEPS = [
   { icon: MessageSquare, label: "Storytelling", description: "Apresente para seu público-alvo" },
 ];
 
+const DIFFICULTY_OPTIONS = [
+  { value: "easy" as const, label: "Iniciante", description: "Cenários mais simples para começar" },
+  { value: "medium" as const, label: "Intermediário", description: "Desafios equilibrados" },
+  { value: "hard" as const, label: "Avançado", description: "Cenários complexos para executivos" },
+];
+
 export default function Home() {
   const [, setLocation] = useLocation();
   const [selectedMode, setSelectedMode] = useState<"solo" | "group">("solo");
+  const [selectedDifficulty, setSelectedDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+
+  const { data: stats } = useQuery<{ totalRounds: number; avgScore: number; bestScore: number; roundsCompleted: number }>({
+    queryKey: ["/api/auth/stats"],
+    enabled: isAuthenticated,
+  });
 
   const createSessionMutation = useMutation({
-    mutationFn: async (mode: "solo" | "group") => {
+    mutationFn: async ({ mode, difficulty }: { mode: "solo" | "group"; difficulty: "easy" | "medium" | "hard" }) => {
       const response = await apiRequest("POST", "/api/sessions", {
         mode,
         playerCount: mode === "solo" ? 1 : 3,
+        difficulty,
       });
-      return response as GameSession;
+      return await response.json() as GameSession;
     },
     onSuccess: (session) => {
       setLocation(`/game/${session.id}`);
@@ -54,13 +74,44 @@ export default function Home() {
   });
 
   const handleStartGame = () => {
-    createSessionMutation.mutate(selectedMode);
+    createSessionMutation.mutate({ mode: selectedMode, difficulty: selectedDifficulty });
   };
 
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
         <header className="text-center mb-12">
+          <div className="flex justify-end mb-4">
+            {authLoading ? (
+              <div className="h-9 w-24 bg-muted animate-pulse rounded-md" />
+            ) : isAuthenticated && user ? (
+              <div className="flex items-center gap-3">
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src={user.profileImageUrl || undefined} alt={user.firstName || "User"} />
+                  <AvatarFallback>
+                    {user.firstName?.[0] || user.email?.[0]?.toUpperCase() || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium hidden sm:block">
+                  {user.firstName || user.email?.split("@")[0]}
+                </span>
+                <Button variant="outline" size="sm" asChild data-testid="button-logout">
+                  <a href="/api/logout">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sair
+                  </a>
+                </Button>
+              </div>
+            ) : (
+              <Button variant="default" asChild data-testid="button-login">
+                <a href="/api/login">
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Entrar
+                </a>
+              </Button>
+            )}
+          </div>
+          
           <Badge variant="secondary" className="mb-4">
             Treinamento Executivo
           </Badge>
@@ -73,46 +124,110 @@ export default function Home() {
           </p>
         </header>
 
+        {isAuthenticated && stats && stats.roundsCompleted > 0 && (
+          <Card className="mb-8">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-chart-5" />
+                Seu Progresso
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-3 rounded-lg bg-muted/50">
+                  <div className="text-2xl font-bold" data-testid="text-total-rounds">{stats.totalRounds}</div>
+                  <div className="text-xs text-muted-foreground">Rodadas Iniciadas</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-muted/50">
+                  <div className="text-2xl font-bold" data-testid="text-completed-rounds">{stats.roundsCompleted}</div>
+                  <div className="text-xs text-muted-foreground">Rodadas Completas</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-muted/50">
+                  <div className="text-2xl font-bold" data-testid="text-avg-score">{stats.avgScore}/12</div>
+                  <div className="text-xs text-muted-foreground">Pontuação Média</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-chart-5/10">
+                  <div className="text-2xl font-bold text-chart-5" data-testid="text-best-score">{stats.bestScore}/12</div>
+                  <div className="text-xs text-muted-foreground">Melhor Pontuação</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid lg:grid-cols-2 gap-8 mb-12">
           <Card className="lg:row-span-2">
             <CardHeader>
               <CardTitle className="text-2xl">Iniciar Nova Sessão</CardTitle>
               <CardDescription>
                 Escolha o modo de jogo e comece a treinar suas habilidades executivas
+                {!isAuthenticated && (
+                  <span className="block mt-1 text-xs">
+                    Entre para salvar seu progresso e acompanhar sua evolução
+                  </span>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  className={`p-4 rounded-lg border-2 text-left transition-all hover-elevate ${
-                    selectedMode === "solo"
-                      ? "border-primary bg-primary/5"
-                      : "border-muted"
-                  }`}
-                  onClick={() => setSelectedMode("solo")}
-                  data-testid="button-mode-solo"
-                >
-                  <PlayCircle className={`h-8 w-8 mb-3 ${selectedMode === "solo" ? "text-primary" : "text-muted-foreground"}`} />
-                  <h3 className="font-semibold mb-1">Modo Solo</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Treine individualmente no seu ritmo
-                  </p>
-                </button>
-                <button
-                  className={`p-4 rounded-lg border-2 text-left transition-all hover-elevate ${
-                    selectedMode === "group"
-                      ? "border-primary bg-primary/5"
-                      : "border-muted"
-                  }`}
-                  onClick={() => setSelectedMode("group")}
-                  data-testid="button-mode-group"
-                >
-                  <Users className={`h-8 w-8 mb-3 ${selectedMode === "group" ? "text-primary" : "text-muted-foreground"}`} />
-                  <h3 className="font-semibold mb-1">Modo Grupo</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Workshop ou competição amigável
-                  </p>
-                </button>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Modo de Jogo</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    className={`p-4 rounded-lg border-2 text-left transition-all hover-elevate ${
+                      selectedMode === "solo"
+                        ? "border-primary bg-primary/5"
+                        : "border-muted"
+                    }`}
+                    onClick={() => setSelectedMode("solo")}
+                    data-testid="button-mode-solo"
+                  >
+                    <PlayCircle className={`h-8 w-8 mb-3 ${selectedMode === "solo" ? "text-primary" : "text-muted-foreground"}`} />
+                    <h3 className="font-semibold mb-1">Modo Solo</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Treine individualmente no seu ritmo
+                    </p>
+                  </button>
+                  <button
+                    className={`p-4 rounded-lg border-2 text-left transition-all hover-elevate ${
+                      selectedMode === "group"
+                        ? "border-primary bg-primary/5"
+                        : "border-muted"
+                    }`}
+                    onClick={() => setSelectedMode("group")}
+                    data-testid="button-mode-group"
+                  >
+                    <Users className={`h-8 w-8 mb-3 ${selectedMode === "group" ? "text-primary" : "text-muted-foreground"}`} />
+                    <h3 className="font-semibold mb-1">Modo Grupo</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Workshop ou competição amigável
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Nível de Dificuldade</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {DIFFICULTY_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      className={`p-3 rounded-lg border-2 text-center transition-all hover-elevate ${
+                        selectedDifficulty === option.value
+                          ? "border-primary bg-primary/5"
+                          : "border-muted"
+                      }`}
+                      onClick={() => setSelectedDifficulty(option.value)}
+                      data-testid={`button-difficulty-${option.value}`}
+                    >
+                      <div className={`font-semibold text-sm ${selectedDifficulty === option.value ? "text-primary" : ""}`}>
+                        {option.label}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {option.description}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <Button
@@ -186,6 +301,9 @@ export default function Home() {
           <Card>
             <CardHeader>
               <CardTitle>Sistema de Avaliação</CardTitle>
+              <CardDescription>
+                Feedback inteligente com IA para cada rodada
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
