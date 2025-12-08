@@ -1,0 +1,220 @@
+Você já tem o jogo Executive Stories parcialmente implementado, com:
+
+Tela de mesa,
+
+Mão de cartas embaixo,
+
+Slots de Diagnóstico / Estratégia / Financeiro / Projetos / Riscos / Storytelling,
+
+Avatares de CEO / CFO / COO / Conselho,
+
+Botão “Montar Argumentação”,
+
+Tela de diagnóstico separada.
+
+Agora, ajuste o sistema seguindo exatamente estas diretrizes:
+
+1. TUDO DEVE ACONTECER NA MESMA “MESA DE REUNIÃO”
+
+Regra:
+Não navegue para outra página quando o jogador clicar em “Montar argumentação” ou em “Ditar”.
+
+Em vez de navegar:
+
+Abra um painel lateral ou overlay sobre a mesma tela da mesa, contendo as etapas:
+
+Diagnóstico
+
+Decisão
+
+Execução
+
+Storytelling
+
+Esse painel deve:
+
+Exibir à esquerda as cartas em foco (as cartas que o jogador arrastou para a mesa).
+
+À direita, os campos de resposta (texto ou voz).
+
+Ter um botão claro: “Concluir argumentação”.
+
+Quando o jogador fecha esse painel, ele volta a ver a mesa, mantendo cartas e bosses no mesmo layout.
+
+2. COMO FUNCIONA A RODADA (LÓGICA DE ESTADO)
+
+Implemente um fluxo simples de estados:
+
+ESTADO = SELECAO_CARTAS
+
+Jogador arrasta cartas da mão para os slots.
+
+Botão “Montar argumentação” habilita quando houver pelo menos 3 cartas na mesa.
+
+ESTADO = ARGUMENTACAO
+
+Abre o painel lateral/overlay.
+
+Jogador responde:
+
+Diagnóstico
+
+Decisão
+
+Execução
+
+Storytelling (por texto ou ditado).
+
+Ao finalizar, salvem essas respostas em um objeto, por exemplo:
+
+{
+  "diagnostico": "...",
+  "decisoes": "...",
+  "execucao": "...",
+  "storytelling": "..."
+}
+
+
+Botão: “Enviar para Bosses”.
+
+ESTADO = PERGUNTAS_BOSSES
+
+Com base em:
+
+Cartas na mesa
+
+Respostas do jogador
+
+Os agentes (CEO, CFO, COO, Conselho) geram perguntas contextuais.
+
+Essas perguntas aparecem em balões sobre os avatares, como já existe.
+
+ESTADO = RESPOSTAS_AOS_BOSSES
+
+Jogador responde (texto ou voz).
+
+Depois, IA avalia a performance e mostra feedback.
+
+3. PERGUNTAS DOS BOSSES DEVEM SER BASEADAS NAS RESPOSTAS, NÃO NO CLIQUE NAS CARTAS
+
+Ajuste o gatilho das perguntas:
+
+Hoje: perguntar quando o jogador clica/seleciona carta.
+
+Novo comportamento:
+
+Só gerar perguntas dos bosses após o jogador concluir a argumentação (diagnóstico, decisão, execução, storytelling).
+
+Use como input para a IA:
+
+Lista de cartas selecionadas (IDs e títulos).
+
+Texto do diagnóstico e do storytelling (ou transcrição da fala).
+
+Modo Boss ativo (quais avatares estão presentes).
+
+Exemplo de prompt interno para o boss CFO:
+
+“Você é um CFO exigente. Leia o diagnóstico, as decisões e o storytelling abaixo, leve em conta que as cartas em foco são [lista de cartas], e gere 2–3 perguntas difíceis sobre ROI, fluxo de caixa, risco financeiro e coerência dos números.”
+
+Isso garante que perguntas tipo:
+
+“Ok, e por que investiríamos nesse projeto se o ROI dele é menor que a taxa SELIC?”
+
+apareçam no contexto da resposta, não apenas por tipo de carta.
+
+4. DITAR (SPEECH-TO-TEXT) PRECISA FUNCIONAR EM LINHA, SEM TROCAR DE PÁGINA
+
+Ajuste o botão “Ditar” em cada campo (Diagnóstico, Storytelling etc.):
+
+Ao clicar em “Ditar”:
+
+Iniciar captura de áudio na mesma tela (Web Speech API ou equivalente).
+
+Mostrar um estado visual: “Gravando… [botão Parar]”.
+
+Ao “Parar”, converter o áudio em texto e preencher o campo correspondente com a transcrição.
+
+Permitir edição manual normal depois da transcrição.
+
+Importante:
+Não navegar para outra página ao clicar em “Ditar”.
+Tudo deve ocorrer dentro do painel de argumentação.
+
+5. FEEDBACK EM ÁUDIO (OPCIONAL, MAS DESEJADO)
+
+Implemente também a opção de feedback em voz:
+
+Depois que a IA avaliar o discurso (texto final), gerar:
+
+Feedback em texto (já está planejado).
+
+Um áudio sintetizado lendo esse feedback em tom executivo.
+
+UI sugerida:
+
+Card de feedback com:
+
+Cabeçalho: “Feedback do CEO / CFO / Conselho”
+
+Texto
+
+Botão: 🔊 Ouvir Feedback
+
+6. PERSONALIZAÇÃO DE PERGUNTAS POR RODADA
+
+Cada rodada deve ter perguntas únicas, coerentes com:
+
+Cartas daquela rodada
+
+Diagnóstico / storytelling daquele jogador
+
+Modo Boss ativo (quais executivos estão presentes)
+
+Regras:
+
+Se apenas CEO estiver ativo:
+
+Perguntas mais estratégicas e de visão.
+
+Se apenas CFO estiver ativo:
+
+Perguntas mais numéricas, SELIC, ROI, caixa, covenants etc.
+
+Se vários bosses estiverem ativos:
+
+Distribua 1–2 perguntas por boss.
+
+Não reutilize sempre as mesmas perguntas genéricas. Use os textos do jogador como contexto.
+
+7. NÃO QUEBRE O FLOW DE JOGO
+
+Princípios:
+
+O jogador deve sentir que:
+
+Baixa cartas na mesa
+
+Monta sua argumentação
+
+Enfrenta perguntas duras dos executivos
+
+Recebe feedback
+
+Evite:
+
+Várias navegações de página.
+
+Layout “formulário de sistema corporativo”.
+
+Perda visual da mesa de reunião.
+
+8. O QUE NÃO PRECISA MUDAR
+
+Design das cartas: está ok, você pode apenas manter/discretamente refinar.
+
+Boss Mode ON/OFF na parte superior: excelente, mantenha.
+
+Slots na mesa (Diagnóstico, Estratégia, Financeiro, Projetos, Riscos, Storytelling): ótimo, mantenha.
+
+O principal ajuste é fluxo + lógica de IA + voz.

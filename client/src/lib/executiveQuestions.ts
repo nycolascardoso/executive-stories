@@ -148,8 +148,16 @@ function getRandomQuestion(questions: string[]): string {
   return questions[Math.floor(Math.random() * questions.length)];
 }
 
+interface PlayerResponses {
+  diagnostico: string;
+  decisoes: string;
+  execucao: string;
+  storytelling: string;
+}
+
 export function generateExecutiveQuestions(
   tableCards: { key: string; card: Card }[],
+  playerResponses?: PlayerResponses,
   executiveIds: string[] = ["ceo", "cfo", "coo", "board"]
 ): ExecutiveQuestion[] {
   if (tableCards.length === 0) return [];

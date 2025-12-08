@@ -1,18 +1,21 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { Card, DrawnCards, GameStep } from "@shared/schema";
 import { CardHand } from "./CardHand";
 import { MeetingTable } from "./MeetingTable";
 import { ExecutiveAvatars, BossModeToggle } from "./ExecutiveAvatars";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowRight, X, Mic, MicOff, Send, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateExecutiveQuestions } from "@/lib/executiveQuestions";
 import { DndContext, DragEndEvent, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 
+type RoundPhase = "SELECAO_CARTAS" | "ARGUMENTACAO" | "PERGUNTAS_BOSSES" | "RESPOSTAS_AOS_BOSSES";
+
 interface GameArenaProps {
   cards: DrawnCards;
   currentStep: GameStep;
-  onProceedToResponse: (tableCards: string[]) => void;
+  onProceedToResponse: (tableCards: string[], responses: Record<string, string>) => void;
   roundNumber: number;
 }
 
@@ -22,6 +25,16 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
   const [speakingExecutive, setSpeakingExecutive] = useState<string | undefined>();
   const [executiveQuestions, setExecutiveQuestions] = useState<Record<string, string>>({});
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  
+  const [roundPhase, setRoundPhase] = useState<RoundPhase>("SELECAO_CARTAS");
+  const [responses, setResponses] = useState({
+    diagnostico: "",
+    decisoes: "",
+    execucao: "",
+    storytelling: "",
+  });
+  const [bossResponses, setBossResponses] = useState<Record<string, string>>({});
+  const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
 
   const mouseSensor = useSensor(MouseSensor, {
     activationConstraint: {
@@ -45,14 +58,20 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
     { key: "storytelling", card: cards.storytelling },
   ];
 
-  const triggerBossQuestions = useCallback((newTableCards: string[]) => {
-    const tableCardsData = newTableCards.map(key => {
+  useEffect(() => {
+    if (currentStep === "cards" && roundPhase !== "SELECAO_CARTAS" && roundPhase !== "ARGUMENTACAO" && roundPhase !== "PERGUNTAS_BOSSES") {
+      setRoundPhase("SELECAO_CARTAS");
+    }
+  }, [currentStep, roundPhase]);
+
+  const triggerBossQuestions = useCallback((playerResponses: typeof responses) => {
+    const tableCardsData = tableCards.map(key => {
       const item = cardArray.find(c => c.key === key);
       return item ? { key, card: item.card } : null;
     }).filter(Boolean) as { key: string; card: Card }[];
     
     setTimeout(() => {
-      const questions = generateExecutiveQuestions(tableCardsData);
+      const questions = generateExecutiveQuestions(tableCardsData, playerResponses);
       if (questions.length > 0) {
         const questionMap = questions.reduce((acc, q) => {
           acc[q.executiveId] = q.question;
@@ -60,9 +79,10 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
         }, {} as Record<string, string>);
         setExecutiveQuestions(questionMap);
         setSpeakingExecutive(questions[0].executiveId);
+        setBossResponses({});
       }
     }, 500);
-  }, [cardArray]);
+  }, [cardArray, tableCards]);
 
   const handleDragStart = (event: { active: { id: string | number } }) => {
     setActiveCardId(String(event.active.id));
@@ -84,10 +104,6 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
         const newTableCards = [...tableCards, draggedCardKey];
         setTableCards(newTableCards);
         console.log("Card placed on table:", draggedCardKey, newTableCards);
-        
-        if (bossMode) {
-          triggerBossQuestions(newTableCards);
-        }
       }
     }
   };
@@ -97,19 +113,57 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
       const newTableCards = [...tableCards, cardKey];
       setTableCards(newTableCards);
       console.log("Card clicked to place:", cardKey, newTableCards);
-      
-      if (bossMode) {
-        triggerBossQuestions(newTableCards);
-      }
     }
-  }, [tableCards, bossMode, triggerBossQuestions]);
+  }, [tableCards]);
 
   const handleRemoveFromTable = useCallback((key: string) => {
     setTableCards(prev => prev.filter(k => k !== key));
   }, []);
 
-  const handleProceed = () => {
-    onProceedToResponse(tableCards.length > 0 ? tableCards : cardArray.map(c => c.key));
+  const handleOpenArgumentation = () => {
+    setRoundPhase("ARGUMENTACAO");
+  };
+
+  const handleCloseArgumentation = () => {
+    setRoundPhase("SELECAO_CARTAS");
+  };
+
+  const handleResponseChange = (field: keyof typeof responses, value: string) => {
+    setResponses(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleVoiceTranscript = (field: keyof typeof responses, transcript: string) => {
+    setResponses(prev => ({ ...prev, [field]: prev[field] + " " + transcript }));
+  };
+
+  const handleSendToBosses = () => {
+    if (bossMode) {
+      triggerBossQuestions(responses);
+      setRoundPhase("PERGUNTAS_BOSSES");
+    } else {
+      onProceedToResponse(
+        tableCards.length > 0 ? tableCards : cardArray.map(c => c.key),
+        responses
+      );
+      setRoundPhase("SELECAO_CARTAS");
+      setActiveVoiceField(null);
+    }
+  };
+
+  const handleBossResponseChange = (executiveId: string, value: string) => {
+    setBossResponses(prev => ({ ...prev, [executiveId]: value }));
+  };
+
+  const handleSubmitBossResponses = () => {
+    onProceedToResponse(
+      tableCards.length > 0 ? tableCards : cardArray.map(c => c.key),
+      { ...responses, bossResponses: JSON.stringify(bossResponses) }
+    );
+    setRoundPhase("SELECAO_CARTAS");
+    setActiveVoiceField(null);
+    setExecutiveQuestions({});
+    setBossResponses({});
+    setSpeakingExecutive(undefined);
   };
 
   const handleDismissQuestion = (executiveId: string) => {
@@ -123,13 +177,18 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
 
   const activeCard = activeCardId ? cardArray.find(c => c.key === activeCardId)?.card : null;
 
+  const tableCardsData = tableCards.map(key => {
+    const item = cardArray.find(c => c.key === key);
+    return item ? item.card : null;
+  }).filter(Boolean) as Card[];
+
   return (
     <DndContext
       sensors={sensors}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="h-full flex flex-col" data-testid="game-arena">
+      <div className="h-full flex flex-col relative" data-testid="game-arena">
         <div className="h-[20%] min-h-[120px] border-b border-border/20 bg-gradient-to-b from-black/30 to-transparent relative">
           <div className="absolute top-2 right-4 z-10">
             <BossModeToggle isActive={bossMode} onToggle={() => setBossMode(!bossMode)} />
@@ -150,7 +209,7 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
           />
           
           <AnimatePresence>
-            {tableCards.length > 0 && (
+            {tableCards.length > 0 && roundPhase === "SELECAO_CARTAS" && (
               <motion.div
                 className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20"
                 initial={{ opacity: 0, y: 20 }}
@@ -160,7 +219,7 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
                 <Button
                   size="lg"
                   className="btn-game-primary text-primary-foreground font-semibold px-8 shadow-lg"
-                  onClick={handleProceed}
+                  onClick={handleOpenArgumentation}
                   data-testid="button-proceed-to-response"
                 >
                   <span className="flex items-center gap-2">
@@ -172,7 +231,7 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
             )}
           </AnimatePresence>
           
-          {tableCards.length === 0 && (
+          {tableCards.length === 0 && roundPhase === "SELECAO_CARTAS" && (
             <motion.div
               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none"
               initial={{ opacity: 0 }}
@@ -180,7 +239,7 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
               transition={{ delay: 1 }}
             >
               <p className="text-sm text-muted-foreground/60 max-w-xs">
-                Arraste as cartas da sua mão para os slots correspondentes na mesa
+                Clique nas cartas da sua mão para colocá-las na mesa
               </p>
             </motion.div>
           )}
@@ -201,6 +260,33 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
             onClickCard={handleClickToPlace}
           />
         </div>
+
+        <AnimatePresence>
+          {roundPhase === "ARGUMENTACAO" && (
+            <ArgumentationOverlay
+              cards={tableCardsData}
+              responses={responses}
+              onResponseChange={handleResponseChange}
+              onVoiceTranscript={handleVoiceTranscript}
+              activeVoiceField={activeVoiceField}
+              setActiveVoiceField={setActiveVoiceField}
+              onClose={handleCloseArgumentation}
+              onSubmit={handleSendToBosses}
+              bossMode={bossMode}
+            />
+          )}
+          
+          {roundPhase === "PERGUNTAS_BOSSES" && (
+            <BossQuestionsOverlay
+              questions={executiveQuestions}
+              responses={bossResponses}
+              onResponseChange={handleBossResponseChange}
+              onSubmit={handleSubmitBossResponses}
+              activeVoiceField={activeVoiceField}
+              setActiveVoiceField={setActiveVoiceField}
+            />
+          )}
+        </AnimatePresence>
       </div>
 
       <DragOverlay>
@@ -242,5 +328,290 @@ function DragOverlayCard({ card }: { card: Card }) {
         </h4>
       </div>
     </div>
+  );
+}
+
+const DECK_COLORS: Record<string, { bg: string; text: string; glow: string; border: string }> = {
+  C: { bg: "bg-amber-500/20", text: "text-amber-400", glow: "shadow-amber-500/30", border: "border-amber-500/40" },
+  E: { bg: "bg-emerald-500/20", text: "text-emerald-400", glow: "shadow-emerald-500/30", border: "border-emerald-500/40" },
+  F: { bg: "bg-cyan-500/20", text: "text-cyan-400", glow: "shadow-cyan-500/30", border: "border-cyan-500/40" },
+  P: { bg: "bg-blue-500/20", text: "text-blue-400", glow: "shadow-blue-500/30", border: "border-blue-500/40" },
+  G: { bg: "bg-purple-500/20", text: "text-purple-400", glow: "shadow-purple-500/30", border: "border-purple-500/40" },
+  S: { bg: "bg-pink-500/20", text: "text-pink-400", glow: "shadow-pink-500/30", border: "border-pink-500/40" },
+};
+
+interface ArgumentationOverlayProps {
+  cards: Card[];
+  responses: { diagnostico: string; decisoes: string; execucao: string; storytelling: string };
+  onResponseChange: (field: keyof ArgumentationOverlayProps["responses"], value: string) => void;
+  onVoiceTranscript: (field: keyof ArgumentationOverlayProps["responses"], transcript: string) => void;
+  activeVoiceField: string | null;
+  setActiveVoiceField: (field: string | null) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+  bossMode: boolean;
+}
+
+function ArgumentationOverlay({ 
+  cards, responses, onResponseChange, onVoiceTranscript,
+  activeVoiceField, setActiveVoiceField, onClose, onSubmit, bossMode
+}: ArgumentationOverlayProps) {
+  const fields = [
+    { key: "diagnostico" as const, label: "Diagnóstico", hint: "Analise o cenário e identifique os pontos críticos" },
+    { key: "decisoes" as const, label: "Decisões", hint: "Defina suas decisões estratégicas e indicadores" },
+    { key: "execucao" as const, label: "Execução", hint: "Descreva iniciativas concretas e mitigação de riscos" },
+    { key: "storytelling" as const, label: "Storytelling", hint: "Construa sua narrativa executiva" },
+  ];
+
+  const hasContent = Object.values(responses).some(v => v.trim().length > 0);
+
+  return (
+    <motion.div
+      className="absolute inset-0 z-50 bg-background/95 backdrop-blur-xl"
+      initial={{ opacity: 0, x: "100%" }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: "100%" }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      data-testid="argumentation-overlay"
+    >
+      <div className="h-full flex">
+        <div className="w-48 shrink-0 border-r border-border/30 bg-black/30 p-4 overflow-y-auto">
+          <h3 className="font-display text-sm font-semibold mb-4 text-muted-foreground">Cartas em Foco</h3>
+          <div className="space-y-3">
+            {cards.map((card) => {
+              const colors = DECK_COLORS[card.deckType];
+              return (
+                <div 
+                  key={card.id}
+                  className={`p-3 rounded-lg border ${colors.border} ${colors.bg}`}
+                >
+                  <span className={`text-[10px] font-mono-game ${colors.text}`}>{card.id}</span>
+                  <p className="text-xs font-medium mt-1 line-clamp-2">{card.name}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b border-border/30">
+            <h2 className="font-display text-xl font-semibold">Montar Argumentação</h2>
+            <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-overlay">
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+            {fields.map((field) => (
+              <div key={field.key} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">{field.label}</label>
+                  <InlineMicButton
+                    isActive={activeVoiceField === field.key}
+                    onStart={() => setActiveVoiceField(field.key)}
+                    onStop={() => setActiveVoiceField(null)}
+                    onTranscript={(text) => onVoiceTranscript(field.key, text)}
+                  />
+                </div>
+                <Textarea
+                  value={responses[field.key]}
+                  onChange={(e) => onResponseChange(field.key, e.target.value)}
+                  placeholder={field.hint}
+                  className="min-h-[100px] bg-black/20 border-border/30 resize-none"
+                  data-testid={`input-${field.key}`}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="p-4 border-t border-border/30 flex justify-end gap-3">
+            <Button variant="outline" onClick={onClose}>
+              Voltar à Mesa
+            </Button>
+            <Button 
+              onClick={onSubmit} 
+              disabled={!hasContent}
+              className="btn-game-primary"
+              data-testid="button-send-to-bosses"
+            >
+              <span className="flex items-center gap-2">
+                {bossMode ? "Enviar para Bosses" : "Concluir Argumentação"}
+                <Send className="h-4 w-4" />
+              </span>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+interface BossQuestionsOverlayProps {
+  questions: Record<string, string>;
+  responses: Record<string, string>;
+  onResponseChange: (executiveId: string, value: string) => void;
+  onSubmit: () => void;
+  activeVoiceField: string | null;
+  setActiveVoiceField: (field: string | null) => void;
+}
+
+const EXECUTIVE_INFO: Record<string, { name: string; title: string; color: string }> = {
+  ceo: { name: "CEO", title: "Chief Executive Officer", color: "text-amber-400" },
+  cfo: { name: "CFO", title: "Chief Financial Officer", color: "text-cyan-400" },
+  coo: { name: "COO", title: "Chief Operating Officer", color: "text-emerald-400" },
+  board: { name: "Conselho", title: "Board of Directors", color: "text-purple-400" },
+};
+
+interface InlineMicButtonProps {
+  isActive: boolean;
+  onStart: () => void;
+  onStop: () => void;
+  onTranscript: (text: string) => void;
+}
+
+function InlineMicButton({ isActive, onStart, onStop, onTranscript }: InlineMicButtonProps) {
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (isActive && !isRecording) {
+      startRecording();
+    } else if (!isActive && isRecording) {
+      stopRecording();
+    }
+  }, [isActive, isRecording]);
+
+  const startRecording = () => {
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) return;
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = "pt-BR";
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsRecording(true);
+    recognition.onresult = (event: any) => {
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          transcript += event.results[i][0].transcript;
+        }
+      }
+      if (transcript) onTranscript(transcript);
+    };
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => setIsRecording(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const stopRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+  };
+
+  const handleClick = () => {
+    if (isActive) {
+      onStop();
+    } else {
+      onStart();
+    }
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={handleClick}
+      className={isActive ? "text-destructive" : ""}
+      data-testid="button-mic"
+    >
+      {isActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+    </Button>
+  );
+}
+
+function BossQuestionsOverlay({ 
+  questions, responses, onResponseChange, onSubmit, activeVoiceField, setActiveVoiceField 
+}: BossQuestionsOverlayProps) {
+  const questionEntries = Object.entries(questions);
+  const allAnswered = questionEntries.every(([id]) => responses[id]?.trim().length > 0);
+
+  return (
+    <motion.div
+      className="absolute inset-0 z-50 bg-background/95 backdrop-blur-xl"
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      data-testid="boss-questions-overlay"
+    >
+      <div className="h-full flex flex-col">
+        <div className="p-4 border-b border-border/30">
+          <h2 className="font-display text-xl font-semibold">Perguntas dos Executivos</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Responda às perguntas dos executivos baseadas na sua argumentação
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {questionEntries.map(([executiveId, question]) => {
+            const exec = EXECUTIVE_INFO[executiveId] || { name: executiveId, title: "", color: "text-foreground" };
+            return (
+              <div key={executiveId} className="space-y-3 p-4 rounded-xl bg-black/20 border border-border/30">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full bg-black/40 flex items-center justify-center font-display font-bold ${exec.color}`}>
+                    {exec.name[0]}
+                  </div>
+                  <div>
+                    <span className={`font-semibold ${exec.color}`}>{exec.name}</span>
+                    <p className="text-xs text-muted-foreground">{exec.title}</p>
+                  </div>
+                </div>
+                
+                <p className="text-sm italic border-l-2 border-border/50 pl-3">"{question}"</p>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Sua Resposta</label>
+                    <InlineMicButton
+                      isActive={activeVoiceField === executiveId}
+                      onStart={() => setActiveVoiceField(executiveId)}
+                      onStop={() => setActiveVoiceField(null)}
+                      onTranscript={(text) => onResponseChange(executiveId, (responses[executiveId] || "") + " " + text)}
+                    />
+                  </div>
+                  <Textarea
+                    value={responses[executiveId] || ""}
+                    onChange={(e) => onResponseChange(executiveId, e.target.value)}
+                    placeholder="Digite ou dite sua resposta..."
+                    className="min-h-[80px] bg-black/20 border-border/30 resize-none"
+                    data-testid={`input-response-${executiveId}`}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="p-4 border-t border-border/30 flex justify-end">
+          <Button 
+            onClick={onSubmit} 
+            disabled={!allAnswered}
+            className="btn-game-primary"
+            data-testid="button-submit-boss-responses"
+          >
+            <span className="flex items-center gap-2">
+              Concluir e Obter Feedback
+              <ChevronRight className="h-4 w-4" />
+            </span>
+          </Button>
+        </div>
+      </div>
+    </motion.div>
   );
 }

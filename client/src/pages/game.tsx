@@ -95,13 +95,13 @@ export default function Game() {
     });
   };
 
-  const handleProceedFromArena = (tableCards: string[]) => {
+  const handleProceedFromArena = (tableCards: string[], responses: Record<string, string>) => {
     if (!currentRound) return;
     setActiveTableCards(tableCards);
     updateRoundMutation.mutate({
       roundId: currentRound.id,
-      step: "diagnosis",
-      response: {},
+      step: "complete",
+      response: responses,
     });
   };
 
