@@ -4,6 +4,36 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Mic, MicOff, Square, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+interface SpeechRecognitionEvent {
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: {
+      isFinal: boolean;
+      [index: number]: {
+        transcript: string;
+      };
+    };
+  };
+}
+
+interface SpeechRecognitionErrorEvent {
+  error: string;
+}
+
+interface SpeechRecognitionInstance {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
   placeholder?: string;
@@ -17,7 +47,7 @@ export function VoiceInput({ onTranscript, placeholder = "Clique para iniciar a 
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(true);
   
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -246,7 +276,7 @@ export function VoiceInput({ onTranscript, placeholder = "Clique para iniciar a 
 
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition: new () => SpeechRecognitionInstance;
   }
 }

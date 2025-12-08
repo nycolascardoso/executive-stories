@@ -431,6 +431,7 @@ function ArgumentationOverlay({
                     onStart={() => setActiveVoiceField(field.key)}
                     onStop={() => setActiveVoiceField(null)}
                     onTranscript={(text) => onVoiceTranscript(field.key, text)}
+                    fieldId={field.key}
                   />
                 </div>
                 <Textarea
@@ -487,11 +488,20 @@ interface InlineMicButtonProps {
   onStart: () => void;
   onStop: () => void;
   onTranscript: (text: string) => void;
+  fieldId?: string;
 }
 
-function InlineMicButton({ isActive, onStart, onStop, onTranscript }: InlineMicButtonProps) {
+function InlineMicButton({ isActive, onStart, onStop, onTranscript, fieldId }: InlineMicButtonProps) {
   const [isRecording, setIsRecording] = useState(false);
+  const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      setIsSupported(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (isActive && !isRecording) {
@@ -499,58 +509,124 @@ function InlineMicButton({ isActive, onStart, onStop, onTranscript }: InlineMicB
     } else if (!isActive && isRecording) {
       stopRecording();
     }
-  }, [isActive, isRecording]);
-
-  const startRecording = () => {
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI) return;
-
-    const recognition = new SpeechRecognitionAPI();
-    recognition.lang = "pt-BR";
-    recognition.continuous = true;
-    recognition.interimResults = false;
-
-    recognition.onstart = () => setIsRecording(true);
-    recognition.onresult = (event: any) => {
-      let transcript = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          transcript += event.results[i][0].transcript;
+    
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // Ignore errors on cleanup
         }
       }
-      if (transcript) onTranscript(transcript);
     };
-    recognition.onerror = () => setIsRecording(false);
-    recognition.onend = () => setIsRecording(false);
+  }, [isActive]);
 
-    recognitionRef.current = recognition;
-    recognition.start();
-  };
+  const startRecording = useCallback(() => {
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      console.error("Speech Recognition not supported");
+      return;
+    }
 
-  const stopRecording = () => {
+    try {
+      const recognition = new SpeechRecognitionAPI();
+      recognition.lang = "pt-BR";
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        console.log("Speech recognition started for field:", fieldId);
+        setIsRecording(true);
+      };
+      
+      recognition.onresult = (event: any) => {
+        let finalTranscript = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          }
+        }
+        if (finalTranscript) {
+          console.log("Transcript received:", finalTranscript);
+          onTranscript(finalTranscript);
+        }
+      };
+      
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        setIsRecording(false);
+        onStop();
+      };
+      
+      recognition.onend = () => {
+        console.log("Speech recognition ended for field:", fieldId);
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (error) {
+      console.error("Failed to start speech recognition:", error);
+      setIsRecording(false);
+      onStop();
+    }
+  }, [fieldId, onTranscript, onStop]);
+
+  const stopRecording = useCallback(() => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // Ignore errors
+      }
       recognitionRef.current = null;
     }
-  };
+    setIsRecording(false);
+  }, []);
 
   const handleClick = () => {
     if (isActive) {
+      stopRecording();
       onStop();
     } else {
       onStart();
     }
   };
 
+  if (!isSupported) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled
+        className="text-muted-foreground/50"
+        title="Reconhecimento de voz não suportado"
+      >
+        <MicOff className="h-4 w-4" />
+      </Button>
+    );
+  }
+
   return (
     <Button
       variant="ghost"
       size="icon"
       onClick={handleClick}
-      className={isActive ? "text-destructive" : ""}
-      data-testid="button-mic"
+      className={`transition-colors ${isActive || isRecording ? "text-destructive bg-destructive/10" : ""}`}
+      data-testid={`button-mic${fieldId ? `-${fieldId}` : ""}`}
+      title={isActive ? "Parar gravação" : "Iniciar gravação de voz"}
     >
-      {isActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+      {isActive || isRecording ? (
+        <motion.div
+          animate={{ scale: [1, 1.2, 1] }}
+          transition={{ duration: 1, repeat: Infinity }}
+        >
+          <MicOff className="h-4 w-4" />
+        </motion.div>
+      ) : (
+        <Mic className="h-4 w-4" />
+      )}
     </Button>
   );
 }
@@ -603,6 +679,7 @@ function BossQuestionsOverlay({
                       onStart={() => setActiveVoiceField(executiveId)}
                       onStop={() => setActiveVoiceField(null)}
                       onTranscript={(text) => onResponseChange(executiveId, (responses[executiveId] || "") + " " + text)}
+                      fieldId={`boss-${executiveId}`}
                     />
                   </div>
                   <Textarea
