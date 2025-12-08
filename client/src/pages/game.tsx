@@ -301,6 +301,7 @@ export default function Game() {
                   currentStep={currentRound.currentStep}
                   onProceedToResponse={handleProceedFromArena}
                   roundNumber={currentRound.roundNumber}
+                  isSubmitting={updateRoundMutation.isPending}
                 />
               ) : (
                 <ActiveRoundView

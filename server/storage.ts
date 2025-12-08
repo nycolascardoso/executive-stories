@@ -232,7 +232,8 @@ export class DatabaseStorage implements IStorage {
     const currentIndex = stepOrder.indexOf(round.currentStep);
     const nextIndex = stepOrder.indexOf(step);
 
-    if (nextIndex < 0 || nextIndex > currentIndex + 1) {
+    const isDirectCompletion = round.currentStep === "cards" && step === "complete";
+    if (nextIndex < 0 || (!isDirectCompletion && nextIndex > currentIndex + 1)) {
       return round;
     }
 
@@ -241,34 +242,57 @@ export class DatabaseStorage implements IStorage {
       return '';
     };
 
-    switch (round.currentStep) {
-      case "cards":
-        break;
-      case "diagnosis":
-        round.response.diagnosis = {
-          contextDescription: sanitize(response.contextDescription),
-          mainRisks: sanitize(response.mainRisks),
-          opportunities: sanitize(response.opportunities),
-        };
-        break;
-      case "decision":
-        round.response.decision = {
-          strategicDecisions: sanitize(response.strategicDecisions),
-          financialIndicators: sanitize(response.financialIndicators),
-          scenarios: sanitize(response.scenarios),
-        };
-        break;
-      case "execution":
-        round.response.execution = {
-          initiatives: sanitize(response.initiatives),
-          riskMitigation: sanitize(response.riskMitigation),
-        };
-        break;
-      case "storytelling":
-        round.response.storytelling = {
-          presentation: sanitize(response.presentation),
-        };
-        break;
+    if (round.currentStep === "cards" && step === "complete") {
+      round.response.diagnosis = {
+        contextDescription: sanitize(response.diagnostico),
+        mainRisks: sanitize(response.diagnostico),
+        opportunities: sanitize(response.diagnostico),
+      };
+      round.response.decision = {
+        strategicDecisions: sanitize(response.decisoes),
+        financialIndicators: sanitize(response.decisoes),
+        scenarios: sanitize(response.decisoes),
+      };
+      round.response.execution = {
+        initiatives: sanitize(response.execucao),
+        riskMitigation: sanitize(response.execucao),
+      };
+      round.response.storytelling = {
+        presentation: sanitize(response.storytelling),
+      };
+      if (response.bossResponses) {
+        (round.response as any).boss = response.bossResponses;
+      }
+    } else {
+      switch (round.currentStep) {
+        case "cards":
+          break;
+        case "diagnosis":
+          round.response.diagnosis = {
+            contextDescription: sanitize(response.contextDescription),
+            mainRisks: sanitize(response.mainRisks),
+            opportunities: sanitize(response.opportunities),
+          };
+          break;
+        case "decision":
+          round.response.decision = {
+            strategicDecisions: sanitize(response.strategicDecisions),
+            financialIndicators: sanitize(response.financialIndicators),
+            scenarios: sanitize(response.scenarios),
+          };
+          break;
+        case "execution":
+          round.response.execution = {
+            initiatives: sanitize(response.initiatives),
+            riskMitigation: sanitize(response.riskMitigation),
+          };
+          break;
+        case "storytelling":
+          round.response.storytelling = {
+            presentation: sanitize(response.presentation),
+          };
+          break;
+      }
     }
 
     round.currentStep = step as GameStep;

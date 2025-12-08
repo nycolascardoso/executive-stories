@@ -17,9 +17,10 @@ interface GameArenaProps {
   currentStep: GameStep;
   onProceedToResponse: (tableCards: string[], responses: Record<string, string>) => void;
   roundNumber: number;
+  isSubmitting?: boolean;
 }
 
-export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber }: GameArenaProps) {
+export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber, isSubmitting = false }: GameArenaProps) {
   const [tableCards, setTableCards] = useState<string[]>([]);
   const [bossMode, setBossMode] = useState(false);
   const [speakingExecutive, setSpeakingExecutive] = useState<string | undefined>();
@@ -285,6 +286,25 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
               activeVoiceField={activeVoiceField}
               setActiveVoiceField={setActiveVoiceField}
             />
+          )}
+          
+          {isSubmitting && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center"
+            >
+              <div className="text-center space-y-4">
+                <motion.div
+                  className="w-16 h-16 rounded-full border-4 border-primary/30 border-t-primary mx-auto"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                />
+                <p className="text-lg font-display text-foreground">Avaliando sua resposta...</p>
+                <p className="text-sm text-muted-foreground">A IA está analisando seu desempenho</p>
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
