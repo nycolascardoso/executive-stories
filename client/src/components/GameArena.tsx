@@ -5,7 +5,7 @@ import { MeetingTable } from "./MeetingTable";
 import { ExecutiveAvatars, BossModeToggle, getExecutiveIds } from "./ExecutiveAvatars";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, X, Mic, MicOff, Send, ChevronRight } from "lucide-react";
+import { ArrowRight, X, Mic, MicOff, Send, ChevronRight, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateExecutiveQuestions } from "@/lib/executiveQuestions";
 import { DndContext, DragEndEvent, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -545,106 +545,95 @@ interface InlineMicButtonProps {
 
 function InlineMicButton({ isActive, onStart, onStop, onTranscript, fieldId }: InlineMicButtonProps) {
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
-  const recognitionRef = useRef<any>(null);
-  const lastActivityRef = useRef<number>(Date.now());
-  const restartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setIsSupported(false);
     }
   }, []);
 
   useEffect(() => {
-    if (isActive && !isRecording) {
+    if (isActive && !isRecording && !isTranscribing) {
       startRecording();
     } else if (!isActive && isRecording) {
       stopRecording();
     }
     
     return () => {
-      if (restartTimeoutRef.current) {
-        clearTimeout(restartTimeoutRef.current);
-      }
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch (e) {}
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
       }
     };
   }, [isActive]);
 
-  const startRecording = useCallback(() => {
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI) return;
-
+  const startRecording = useCallback(async () => {
     try {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.abort(); } catch (e) {}
-      }
-
-      const recognition = new SpeechRecognitionAPI();
-      recognition.lang = "pt-BR";
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        setIsRecording(true);
-        lastActivityRef.current = Date.now();
+      audioChunksRef.current = [];
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
       
-      recognition.onresult = (event: any) => {
-        const result = event.results[0];
-        if (result && result[0]) {
-          const transcript = result[0].transcript.trim();
-          if (transcript) {
-            onTranscript(transcript);
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop());
+        
+        if (audioChunksRef.current.length > 0) {
+          setIsTranscribing(true);
+          try {
+            const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+            const base64 = await blobToBase64(audioBlob);
+            
+            const response = await fetch("/api/transcribe", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ audio: base64, mimeType }),
+            });
+            
+            if (response.ok) {
+              const { transcript } = await response.json();
+              if (transcript && transcript.trim()) {
+                onTranscript(transcript.trim());
+              }
+            } else {
+              console.error("Transcription failed:", await response.text());
+            }
+          } catch (error) {
+            console.error("Transcription error:", error);
+          } finally {
+            setIsTranscribing(false);
           }
         }
-        lastActivityRef.current = Date.now();
-      };
-      
-      recognition.onerror = (event: any) => {
-        if (event.error !== 'aborted' && event.error !== 'no-speech') {
-          console.error("Speech error:", event.error);
-        }
         setIsRecording(false);
       };
       
-      recognition.onend = () => {
-        setIsRecording(false);
-        if (isActive) {
-          restartTimeoutRef.current = setTimeout(() => {
-            if (isActive) startRecording();
-          }, 100);
-        }
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(1000);
+      setIsRecording(true);
     } catch (error) {
+      console.error("Failed to start recording:", error);
       setIsRecording(false);
       onStop();
     }
-  }, [fieldId, onTranscript, onStop, isActive]);
+  }, [onTranscript, onStop]);
 
   const stopRecording = useCallback(() => {
-    if (restartTimeoutRef.current) {
-      clearTimeout(restartTimeoutRef.current);
-      restartTimeoutRef.current = null;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
     }
-    if (recognitionRef.current) {
-      try { recognitionRef.current.abort(); } catch (e) {}
-      recognitionRef.current = null;
-    }
-    setIsRecording(false);
   }, []);
 
   const handleClick = () => {
-    if (isActive) {
+    if (isActive || isRecording) {
       stopRecording();
       onStop();
     } else {
@@ -659,7 +648,7 @@ function InlineMicButton({ isActive, onStart, onStop, onTranscript, fieldId }: I
         size="icon"
         disabled
         className="text-muted-foreground/50"
-        title="Reconhecimento de voz não suportado"
+        title="Gravação de áudio não suportada"
       >
         <MicOff className="h-4 w-4" />
       </Button>
@@ -671,11 +660,14 @@ function InlineMicButton({ isActive, onStart, onStop, onTranscript, fieldId }: I
       variant="ghost"
       size="icon"
       onClick={handleClick}
-      className={`transition-colors ${isActive || isRecording ? "text-destructive bg-destructive/10" : ""}`}
+      disabled={isTranscribing}
+      className={`transition-colors ${isActive || isRecording ? "text-destructive bg-destructive/10" : ""} ${isTranscribing ? "animate-pulse" : ""}`}
       data-testid={`button-mic${fieldId ? `-${fieldId}` : ""}`}
-      title={isActive ? "Parar gravação" : "Iniciar gravação de voz"}
+      title={isTranscribing ? "Transcrevendo..." : isActive ? "Parar gravação" : "Iniciar gravação de voz"}
     >
-      {isActive || isRecording ? (
+      {isTranscribing ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : isActive || isRecording ? (
         <motion.div
           animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 1, repeat: Infinity }}
@@ -687,6 +679,18 @@ function InlineMicButton({ isActive, onStart, onStop, onTranscript, fieldId }: I
       )}
     </Button>
   );
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 function BossQuestionsOverlay({ 

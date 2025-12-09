@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { createSessionSchema, createGuestProfileSchema, type GameSession, type GameRound } from "@shared/schema";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { DECK_INFO } from "@shared/cardData";
+import { transcribeAudio } from "./aiService";
 
 function generateSessionReport(session: GameSession): string {
   const difficultyLabels: Record<string, string> = {
@@ -283,6 +284,22 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error exporting session:", error);
       res.status(500).json({ error: "Failed to export session" });
+    }
+  });
+
+  app.post("/api/transcribe", async (req, res) => {
+    try {
+      const { audio, mimeType } = req.body;
+      
+      if (!audio || typeof audio !== "string") {
+        return res.status(400).json({ error: "Missing audio data" });
+      }
+
+      const transcript = await transcribeAudio(audio, mimeType || "audio/webm");
+      res.json({ transcript });
+    } catch (error) {
+      console.error("Transcription error:", error);
+      res.status(500).json({ error: "Failed to transcribe audio" });
     }
   });
 

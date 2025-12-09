@@ -1,10 +1,36 @@
 import OpenAI from "openai";
 import type { RoundResponse, DrawnCards, RoundScore, ExecutiveFeedback } from "@shared/schema";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+export async function transcribeAudio(audioBase64: string, mimeType: string = "audio/webm"): Promise<string> {
+  const extension = mimeType.includes("webm") ? "webm" : mimeType.includes("mp4") ? "mp4" : "wav";
+  const tempFilePath = path.join(os.tmpdir(), `whisper-${Date.now()}.${extension}`);
+  
+  try {
+    const audioBuffer = Buffer.from(audioBase64, "base64");
+    fs.writeFileSync(tempFilePath, audioBuffer);
+    
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(tempFilePath),
+      model: "whisper-1",
+      language: "pt",
+    });
+    
+    const text = typeof transcription === "string" ? transcription : transcription.text;
+    return (text ?? "").trim();
+  } finally {
+    if (fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+  }
+}
 
 interface LocalExecutiveFeedback {
   executiveId: string;
