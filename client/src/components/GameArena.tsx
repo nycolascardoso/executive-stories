@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { Card, DrawnCards, GameStep } from "@shared/schema";
+import type { Card, DrawnCards, GameStep, Difficulty } from "@shared/schema";
 import { CardHand } from "./CardHand";
 import { MeetingTable } from "./MeetingTable";
 import { ExecutiveAvatars, BossModeToggle } from "./ExecutiveAvatars";
@@ -18,11 +18,20 @@ interface GameArenaProps {
   onProceedToResponse: (tableCards: string[], responses: Record<string, string>) => void;
   roundNumber: number;
   isSubmitting?: boolean;
+  difficulty?: Difficulty;
 }
 
-export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber, isSubmitting = false }: GameArenaProps) {
+const DIFFICULTY_CONFIG: Record<Difficulty, { minCards: number; autoBossMode: boolean }> = {
+  iniciante: { minCards: 1, autoBossMode: false },
+  intermediario: { minCards: 3, autoBossMode: true },
+  avancado: { minCards: 3, autoBossMode: true },
+};
+
+export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber, isSubmitting = false, difficulty = "iniciante" }: GameArenaProps) {
+  const config = DIFFICULTY_CONFIG[difficulty];
   const [tableCards, setTableCards] = useState<string[]>([]);
-  const [bossMode, setBossMode] = useState(false);
+  const [bossMode, setBossMode] = useState(config.autoBossMode);
+  const [cardWarning, setCardWarning] = useState<string | null>(null);
   const [speakingExecutive, setSpeakingExecutive] = useState<string | undefined>();
   const [executiveQuestions, setExecutiveQuestions] = useState<Record<string, string>>({});
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
@@ -64,6 +73,10 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
       setRoundPhase("SELECAO_CARTAS");
     }
   }, [currentStep, roundPhase]);
+
+  useEffect(() => {
+    setBossMode(config.autoBossMode);
+  }, [config.autoBossMode, difficulty]);
 
   const triggerBossQuestions = useCallback((playerResponses: typeof responses) => {
     const tableCardsData = tableCards.map(key => {
@@ -122,6 +135,12 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
   }, []);
 
   const handleOpenArgumentation = () => {
+    if (tableCards.length < config.minCards) {
+      setCardWarning(`Selecione pelo menos ${config.minCards} carta${config.minCards > 1 ? 's' : ''} para ${difficulty === 'iniciante' ? 'continuar' : 'este nível de dificuldade'}`);
+      setTimeout(() => setCardWarning(null), 3000);
+      return;
+    }
+    setCardWarning(null);
     setRoundPhase("ARGUMENTACAO");
   };
 
@@ -138,14 +157,19 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
   };
 
   const handleSendToBosses = () => {
+    const cardsToUse = tableCards.length > 0 ? tableCards : [];
+    
+    if (cardsToUse.length < config.minCards) {
+      setCardWarning(`Selecione pelo menos ${config.minCards} carta${config.minCards > 1 ? 's' : ''}`);
+      setTimeout(() => setCardWarning(null), 3000);
+      return;
+    }
+    
     if (bossMode) {
       triggerBossQuestions(responses);
       setRoundPhase("PERGUNTAS_BOSSES");
     } else {
-      onProceedToResponse(
-        tableCards.length > 0 ? tableCards : cardArray.map(c => c.key),
-        responses
-      );
+      onProceedToResponse(cardsToUse, responses);
       setRoundPhase("SELECAO_CARTAS");
       setActiveVoiceField(null);
     }
@@ -156,10 +180,15 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
   };
 
   const handleSubmitBossResponses = () => {
-    onProceedToResponse(
-      tableCards.length > 0 ? tableCards : cardArray.map(c => c.key),
-      { ...responses, bossResponses: JSON.stringify(bossResponses) }
-    );
+    const cardsToUse = tableCards.length > 0 ? tableCards : [];
+    
+    if (cardsToUse.length < config.minCards) {
+      setCardWarning(`Selecione pelo menos ${config.minCards} carta${config.minCards > 1 ? 's' : ''}`);
+      setTimeout(() => setCardWarning(null), 3000);
+      return;
+    }
+    
+    onProceedToResponse(cardsToUse, { ...responses, bossResponses: JSON.stringify(bossResponses) });
     setRoundPhase("SELECAO_CARTAS");
     setActiveVoiceField(null);
     setExecutiveQuestions({});
@@ -242,8 +271,28 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
               <p className="text-sm text-muted-foreground/60 max-w-xs">
                 Clique nas cartas da sua mão para colocá-las na mesa
               </p>
+              {config.minCards > 1 && (
+                <p className="text-xs text-amber-400/70 mt-2">
+                  Mínimo: {config.minCards} cartas ({difficulty})
+                </p>
+              )}
             </motion.div>
           )}
+          
+          <AnimatePresence>
+            {cardWarning && (
+              <motion.div
+                className="absolute top-4 left-1/2 -translate-x-1/2 z-30"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <div className="bg-destructive/90 text-destructive-foreground px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+                  {cardWarning}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         
         <div className="h-[25%] min-h-[180px] relative bg-gradient-to-t from-black/50 to-transparent">
@@ -495,6 +544,8 @@ function InlineMicButton({ isActive, onStart, onStop, onTranscript, fieldId }: I
   const [isRecording, setIsRecording] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+  const restartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -511,75 +562,79 @@ function InlineMicButton({ isActive, onStart, onStop, onTranscript, fieldId }: I
     }
     
     return () => {
+      if (restartTimeoutRef.current) {
+        clearTimeout(restartTimeoutRef.current);
+      }
       if (recognitionRef.current) {
         try {
-          recognitionRef.current.stop();
-        } catch (e) {
-          // Ignore errors on cleanup
-        }
+          recognitionRef.current.abort();
+        } catch (e) {}
       }
     };
   }, [isActive]);
 
   const startRecording = useCallback(() => {
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI) {
-      console.error("Speech Recognition not supported");
-      return;
-    }
+    if (!SpeechRecognitionAPI) return;
 
     try {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch (e) {}
+      }
+
       const recognition = new SpeechRecognitionAPI();
       recognition.lang = "pt-BR";
-      recognition.continuous = true;
-      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
-        console.log("Speech recognition started for field:", fieldId);
         setIsRecording(true);
+        lastActivityRef.current = Date.now();
       };
       
       recognition.onresult = (event: any) => {
-        let finalTranscript = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+        const result = event.results[0];
+        if (result && result[0]) {
+          const transcript = result[0].transcript.trim();
+          if (transcript) {
+            onTranscript(transcript);
           }
         }
-        if (finalTranscript) {
-          console.log("Transcript received:", finalTranscript);
-          onTranscript(finalTranscript);
-        }
+        lastActivityRef.current = Date.now();
       };
       
       recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error);
+        if (event.error !== 'aborted' && event.error !== 'no-speech') {
+          console.error("Speech error:", event.error);
+        }
         setIsRecording(false);
-        onStop();
       };
       
       recognition.onend = () => {
-        console.log("Speech recognition ended for field:", fieldId);
         setIsRecording(false);
+        if (isActive) {
+          restartTimeoutRef.current = setTimeout(() => {
+            if (isActive) startRecording();
+          }, 100);
+        }
       };
 
       recognitionRef.current = recognition;
       recognition.start();
     } catch (error) {
-      console.error("Failed to start speech recognition:", error);
       setIsRecording(false);
       onStop();
     }
-  }, [fieldId, onTranscript, onStop]);
+  }, [fieldId, onTranscript, onStop, isActive]);
 
   const stopRecording = useCallback(() => {
+    if (restartTimeoutRef.current) {
+      clearTimeout(restartTimeoutRef.current);
+      restartTimeoutRef.current = null;
+    }
     if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        // Ignore errors
-      }
+      try { recognitionRef.current.abort(); } catch (e) {}
       recognitionRef.current = null;
     }
     setIsRecording(false);

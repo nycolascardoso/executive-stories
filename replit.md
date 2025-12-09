@@ -81,6 +81,13 @@ MVP completo com:
 
 ## Recent Changes
 
+- 2024-12-09: Melhorias de Dificuldade e Performance
+  - Mínimo de cartas por dificuldade: iniciante=1, intermediário/avançado=3
+  - Boss Mode ativado automaticamente para intermediário/avançado
+  - Speech-to-text otimizado com ciclo de reconhecimento mais rápido
+  - Aviso visual quando número mínimo de cartas não é atingido
+  - Feedback por executivo (CEO/CFO/COO/Board) com metodologia Harvard/MIT/Stanford
+  - Perguntas contextuais baseadas nas respostas do jogador
 - 2024-12-08: 3-Zone Card Game Layout
   - Implementado layout Yu-Gi-Oh/Balatro com CardHand, MeetingTable, ExecutiveAvatars
   - Click-to-place para colocação de cartas

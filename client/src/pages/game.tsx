@@ -302,6 +302,7 @@ export default function Game() {
                   onProceedToResponse={handleProceedFromArena}
                   roundNumber={currentRound.roundNumber}
                   isSubmitting={updateRoundMutation.isPending}
+                  difficulty={session.difficulty}
                 />
               ) : (
                 <ActiveRoundView

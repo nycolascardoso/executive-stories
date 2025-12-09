@@ -1,14 +1,14 @@
 import OpenAI from "openai";
-import type { RoundResponse, DrawnCards, RoundScore } from "@shared/schema";
+import type { RoundResponse, DrawnCards, RoundScore, ExecutiveFeedback } from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-interface ExecutiveFeedback {
+interface LocalExecutiveFeedback {
   executiveId: string;
-  name: string;
+  executiveName: string;
   score: number;
   maxScore: number;
   feedback: string;
@@ -35,7 +35,6 @@ interface AIEvaluationResult {
 }
 
 export interface EnhancedRoundScore extends RoundScore {
-  executiveFeedback?: ExecutiveFeedback[];
   methodologyInsights?: string[];
 }
 
@@ -122,9 +121,8 @@ Responda APENAS com JSON válido, sem markdown.`
         if (fb) {
           executiveFeedback.push({
             executiveId: exec.id,
-            name: exec.name,
+            executiveName: exec.name,
             score: Math.min(3, Math.max(0, fb.score)),
-            maxScore: 3,
             feedback: fb.feedback,
             methodology: exec.methodology,
           });
@@ -356,33 +354,29 @@ function getFallbackScore(response: RoundResponse): EnhancedRoundScore {
   const executiveFeedback: ExecutiveFeedback[] = [
     {
       executiveId: "ceo",
-      name: "CEO",
+      executiveName: "CEO",
       score: diagnosisClarity,
-      maxScore: 3,
       feedback: diagnosisClarity >= 2 ? "Visão estratégica sólida." : "Precisa desenvolver mais a visão de longo prazo.",
       methodology: "Framework de Porter",
     },
     {
       executiveId: "cfo",
-      name: "CFO",
+      executiveName: "CFO",
       score: financialCoherence,
-      maxScore: 3,
       feedback: financialCoherence >= 2 ? "Análise financeira coerente." : "Fortaleça os indicadores financeiros.",
       methodology: "Análise DCF",
     },
     {
       executiveId: "coo",
-      name: "COO",
+      executiveName: "COO",
       score: executionRobustness,
-      maxScore: 3,
       feedback: executionRobustness >= 2 ? "Plano executável e claro." : "Defina iniciativas mais específicas.",
       methodology: "OKRs e Lean",
     },
     {
       executiveId: "board",
-      name: "Conselho",
+      executiveName: "Conselho",
       score: storytellingQuality,
-      maxScore: 3,
       feedback: storytellingQuality >= 2 ? "Comunicação adequada para stakeholders." : "Trabalhe a narrativa para o board.",
       methodology: "Stakeholder Theory",
     },
