@@ -14,7 +14,7 @@ MVP completo com:
 - Sistema de 6 baralhos com 60 cartas (Contexto, Estratégia, Finanças, Projetos, Governança, Storytelling)
 - **Click-to-place**: Clique em uma carta para colocá-la na mesa
 - **Boss Mode**: Executivos fazem perguntas contextuais baseadas nas cartas
-- **Voice Input**: Entrada por voz (Web Speech API) para respostas
+- **Voice Input**: Entrada por voz via OpenAI Whisper API para transcrição confiável
 - Fluxo de jogo: sorteio → colocação de cartas → diagnóstico → decisão → execução → storytelling
 - Sistema de pontuação com feedback AI detalhado
 - Histórico de sessões e rodadas
@@ -81,6 +81,11 @@ MVP completo com:
 
 ## Recent Changes
 
+- 2024-12-09: Whisper API Integration
+  - Substituído Web Speech API por OpenAI Whisper para transcrição confiável
+  - Backend: POST /api/transcribe recebe áudio base64 e retorna texto
+  - Frontend: MediaRecorder API para captura de áudio cross-browser
+  - Indicador de carregamento durante transcrição
 - 2024-12-09: Max Jason - Reestruturador Implacável
   - Novo personagem "boss" exclusivo para dificuldade avançada
   - Personalidade brutal: "grosso, direto, pragmático e truculento"
