@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { Card, DrawnCards, GameStep, Difficulty } from "@shared/schema";
 import { CardHand } from "./CardHand";
 import { MeetingTable } from "./MeetingTable";
-import { ExecutiveAvatars, BossModeToggle } from "./ExecutiveAvatars";
+import { ExecutiveAvatars, BossModeToggle, getExecutiveIds } from "./ExecutiveAvatars";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, X, Mic, MicOff, Send, ChevronRight } from "lucide-react";
@@ -78,6 +78,8 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
     setBossMode(config.autoBossMode);
   }, [config.autoBossMode, difficulty]);
 
+  const executiveIds = getExecutiveIds(difficulty);
+
   const triggerBossQuestions = useCallback((playerResponses: typeof responses) => {
     const tableCardsData = tableCards.map(key => {
       const item = cardArray.find(c => c.key === key);
@@ -85,7 +87,7 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
     }).filter(Boolean) as { key: string; card: Card }[];
     
     setTimeout(() => {
-      const questions = generateExecutiveQuestions(tableCardsData, playerResponses);
+      const questions = generateExecutiveQuestions(tableCardsData, playerResponses, executiveIds);
       if (questions.length > 0) {
         const questionMap = questions.reduce((acc, q) => {
           acc[q.executiveId] = q.question;
@@ -96,7 +98,7 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
         setBossResponses({});
       }
     }, 500);
-  }, [cardArray, tableCards]);
+  }, [cardArray, tableCards, executiveIds]);
 
   const handleDragStart = (event: { active: { id: string | number } }) => {
     setActiveCardId(String(event.active.id));
@@ -228,6 +230,7 @@ export function GameArena({ cards, currentStep, onProceedToResponse, roundNumber
             speakingExecutive={speakingExecutive}
             questions={executiveQuestions}
             onDismissQuestion={handleDismissQuestion}
+            difficulty={difficulty}
           />
         </div>
         

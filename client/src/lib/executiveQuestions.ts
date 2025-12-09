@@ -145,11 +145,45 @@ const BOARD_BASE_QUESTIONS: Record<DeckType, string[]> = {
   ],
 };
 
+const MAXJASON_BASE_QUESTIONS: Record<DeckType, string[]> = {
+  C: [
+    "Corta a baboseira. Em 30 segundos, me diz: a empresa sobrevive ou morre nesse cenário?",
+    "Esse contexto grita insolvência. Por que ainda não declararam falência?",
+    "Eu reestruturei 47 empresas. Essa situação é pior que 90% delas. Qual seu plano REAL?",
+  ],
+  E: [
+    "Estratégia bonita no PowerPoint. Na prática, quanto tempo até o caixa secar?",
+    "Já vi esse filme antes. A empresa vai quebrar em 18 meses com essa estratégia. Prova que estou errado.",
+    "Você está rearrangando as cadeiras no Titanic. Onde está o bote salva-vidas?",
+  ],
+  F: [
+    "Esses números são fantasia. Me mostra o burn rate real e quando acaba o dinheiro.",
+    "Covenant quebrado em 3 meses com esses números. Qual é o plano de renegociação com os credores?",
+    "Fluxo de caixa negativo, dívida crescente, margem caindo. Por que não liquidar agora e pagar os credores?",
+  ],
+  P: [
+    "Projeto? A casa está pegando fogo e você quer reformar a cozinha?",
+    "Esse projeto consome caixa que você não tem. Cancela ou a empresa fecha. Escolhe.",
+    "Priorize: salvar a empresa ou esse projeto de estimação. Não dá para ter os dois.",
+  ],
+  G: [
+    "Governança? Os acionistas vão processar todo mundo quando isso explodir. Qual é a defesa?",
+    "O conselho vai ser responsabilizado pessoalmente. Já avisaram suas famílias?",
+    "Conflito de interesse, falta de disclosure, gestão temerária. Quantos processos você quer?",
+  ],
+  S: [
+    "Storytelling? Me conta a história real: quantos empregos você vai cortar?",
+    "Bonito o discurso. Agora me diz: quem vai ser demitido e quando?",
+    "Para de enrolar. Qual é a notícia ruim que você está escondendo nessa narrativa?",
+  ],
+};
+
 const EXECUTIVE_QUESTION_BANKS: Record<string, Record<DeckType, string[]>> = {
   ceo: CEO_BASE_QUESTIONS,
   cfo: CFO_BASE_QUESTIONS,
   coo: COO_BASE_QUESTIONS,
   board: BOARD_BASE_QUESTIONS,
+  maxjason: MAXJASON_BASE_QUESTIONS,
 };
 
 const CEO_CONTEXTUAL_TEMPLATES = [
@@ -176,11 +210,19 @@ const BOARD_CONTEXTUAL_TEMPLATES = [
   "Qual é o risco reputacional se '{excerpt}' der errado publicamente?",
 ];
 
+const MAXJASON_CONTEXTUAL_TEMPLATES = [
+  "'{excerpt}'? Isso não vai salvar a empresa. Qual é o plano de verdade?",
+  "Você falou '{excerpt}'. Quantos demitidos isso representa? Seja honesto.",
+  "'{excerpt}' é desculpa de quem não quer tomar decisão difícil. O que você está evitando?",
+  "Eu li '{excerpt}'. Traduz isso em: 'a empresa sobrevive ou não?' Sem enrolação.",
+];
+
 const CONTEXTUAL_TEMPLATES: Record<string, string[]> = {
   ceo: CEO_CONTEXTUAL_TEMPLATES,
   cfo: CFO_CONTEXTUAL_TEMPLATES,
   coo: COO_CONTEXTUAL_TEMPLATES,
   board: BOARD_CONTEXTUAL_TEMPLATES,
+  maxjason: MAXJASON_CONTEXTUAL_TEMPLATES,
 };
 
 function extractKeyPhrases(text: string): string[] {
@@ -303,6 +345,7 @@ export function getExecutiveInfo(executiveId: string): { name: string; title: st
     cfo: { name: "CFO", title: "Chief Financial Officer", focus: "Retorno financeiro e riscos" },
     coo: { name: "COO", title: "Chief Operating Officer", focus: "Execução e capacidade operacional" },
     board: { name: "Conselho", title: "Board of Directors", focus: "Governança e stakeholders" },
+    maxjason: { name: "MAX JASON", title: "Reestruturador Implacável", focus: "Reestruturação, crise e liquidação" },
   };
   return info[executiveId] || { name: executiveId, title: "", focus: "" };
 }

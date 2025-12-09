@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, TrendingUp, Settings, Users, MessageCircle, X } from "lucide-react";
+import { User, TrendingUp, Settings, Users, MessageCircle, X, Skull } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import type { Difficulty } from "@shared/schema";
 
 interface Executive {
   id: string;
@@ -11,8 +11,10 @@ interface Executive {
   style: string;
   color: string;
   bgColor: string;
+  glowColor: string;
   icon: React.ReactNode;
   focus: string[];
+  advancedOnly?: boolean;
 }
 
 const EXECUTIVES: Executive[] = [
@@ -23,6 +25,7 @@ const EXECUTIVES: Executive[] = [
     style: "Visionário e desafiador",
     color: "text-amber-400",
     bgColor: "bg-amber-500/10",
+    glowColor: "rgba(245,158,11,0.3)",
     icon: <User className="h-5 w-5" />,
     focus: ["Visão de longo prazo", "Crescimento", "Risco estratégico"],
   },
@@ -33,6 +36,7 @@ const EXECUTIVES: Executive[] = [
     style: "Analítico e conservador",
     color: "text-cyan-400",
     bgColor: "bg-cyan-500/10",
+    glowColor: "rgba(6,182,212,0.3)",
     icon: <TrendingUp className="h-5 w-5" />,
     focus: ["ROI", "Fluxo de caixa", "Risco financeiro"],
   },
@@ -43,6 +47,7 @@ const EXECUTIVES: Executive[] = [
     style: "Pragmático e direto",
     color: "text-emerald-400",
     bgColor: "bg-emerald-500/10",
+    glowColor: "rgba(16,185,129,0.3)",
     icon: <Settings className="h-5 w-5" />,
     focus: ["Execução", "Capacidade", "Prazos"],
   },
@@ -53,8 +58,21 @@ const EXECUTIVES: Executive[] = [
     style: "Estratégico e cético",
     color: "text-purple-400",
     bgColor: "bg-purple-500/10",
+    glowColor: "rgba(168,85,247,0.3)",
     icon: <Users className="h-5 w-5" />,
     focus: ["Governança", "Valor de longo prazo", "Stakeholders"],
+  },
+  {
+    id: "maxjason",
+    role: "MAX JASON",
+    title: "Reestruturador Implacável",
+    style: "Direto, grosso e truculento",
+    color: "text-red-500",
+    bgColor: "bg-red-900/30",
+    glowColor: "rgba(220,38,38,0.5)",
+    icon: <Skull className="h-5 w-5" />,
+    focus: ["Reestruturação", "Crise", "Liquidação"],
+    advancedOnly: true,
   },
 ];
 
@@ -67,22 +85,24 @@ interface ExecutiveCardProps {
 }
 
 function ExecutiveCard({ executive, isActive, isSpeaking, currentQuestion, onDismissQuestion }: ExecutiveCardProps) {
+  const isMaxJason = executive.id === "maxjason";
+  
   return (
     <motion.div
       className={`relative flex flex-col items-center transition-all duration-300 ${
         isActive ? 'opacity-100' : 'opacity-50'
       }`}
       animate={{ 
-        scale: isSpeaking ? 1.05 : 1,
-        y: isSpeaking ? -5 : 0,
+        scale: isSpeaking ? 1.1 : 1,
+        y: isSpeaking ? -8 : 0,
       }}
     >
       <motion.div
         className={`w-14 h-14 rounded-full ${executive.bgColor} border-2 ${
-          isSpeaking ? `border-${executive.color.replace('text-', '')}` : 'border-border/30'
-        } flex items-center justify-center relative`}
+          isSpeaking ? (isMaxJason ? 'border-red-600' : 'border-border') : 'border-border/30'
+        } flex items-center justify-center relative ${isMaxJason ? 'ring-2 ring-red-900/50' : ''}`}
         animate={{
-          boxShadow: isSpeaking ? `0 0 20px ${executive.color.includes('amber') ? 'rgba(245,158,11,0.3)' : executive.color.includes('cyan') ? 'rgba(6,182,212,0.3)' : executive.color.includes('emerald') ? 'rgba(16,185,129,0.3)' : 'rgba(168,85,247,0.3)'}` : 'none',
+          boxShadow: isSpeaking ? `0 0 ${isMaxJason ? '30px' : '20px'} ${executive.glowColor}` : 'none',
         }}
       >
         <span className={executive.color}>{executive.icon}</span>
@@ -138,9 +158,14 @@ interface ExecutiveAvatarsProps {
   speakingExecutive?: string;
   questions: Record<string, string>;
   onDismissQuestion: (executiveId: string) => void;
+  difficulty?: Difficulty;
 }
 
-export function ExecutiveAvatars({ isActive, speakingExecutive, questions, onDismissQuestion }: ExecutiveAvatarsProps) {
+export function ExecutiveAvatars({ isActive, speakingExecutive, questions, onDismissQuestion, difficulty = "iniciante" }: ExecutiveAvatarsProps) {
+  const visibleExecutives = EXECUTIVES.filter(exec => 
+    !exec.advancedOnly || difficulty === "avancado"
+  );
+
   if (!isActive) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -154,10 +179,10 @@ export function ExecutiveAvatars({ isActive, speakingExecutive, questions, onDis
 
   return (
     <div 
-      className="h-full flex items-center justify-center gap-8 lg:gap-12 px-4"
+      className="h-full flex items-center justify-center gap-6 lg:gap-10 px-4"
       data-testid="executive-avatars"
     >
-      {EXECUTIVES.map((executive) => (
+      {visibleExecutives.map((executive) => (
         <ExecutiveCard
           key={executive.id}
           executive={executive}
@@ -169,6 +194,12 @@ export function ExecutiveAvatars({ isActive, speakingExecutive, questions, onDis
       ))}
     </div>
   );
+}
+
+export function getExecutiveIds(difficulty: Difficulty): string[] {
+  return EXECUTIVES
+    .filter(exec => !exec.advancedOnly || difficulty === "avancado")
+    .map(exec => exec.id);
 }
 
 export function BossModeToggle({ 

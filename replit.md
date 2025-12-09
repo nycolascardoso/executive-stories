@@ -10,7 +10,7 @@ MVP completo com:
 - **3-Zone Card Game Layout**: Layout inspirado em Yu-Gi-Oh/Balatro
   - Zona de mão (inferior 25%): Cartas do jogador em leque
   - Mesa de reunião (centro 55%): 6 slots para cartas
-  - Avatares executivos (superior 20%): CEO, CFO, COO, Board
+  - Avatares executivos (superior 20%): CEO, CFO, COO, Board, Max Jason (avançado)
 - Sistema de 6 baralhos com 60 cartas (Contexto, Estratégia, Finanças, Projetos, Governança, Storytelling)
 - **Click-to-place**: Clique em uma carta para colocá-la na mesa
 - **Boss Mode**: Executivos fazem perguntas contextuais baseadas nas cartas
@@ -81,6 +81,12 @@ MVP completo com:
 
 ## Recent Changes
 
+- 2024-12-09: Max Jason - Reestruturador Implacável
+  - Novo personagem "boss" exclusivo para dificuldade avançada
+  - Personalidade brutal: "grosso, direto, pragmático e truculento"
+  - Visual: Ícone de caveira, tema vermelho sangue, glow intenso
+  - Perguntas focadas em reestruturação, crise e liquidação
+  - Implementado via advancedOnly flag e getExecutiveIds(difficulty)
 - 2024-12-09: Melhorias de Dificuldade e Performance
   - Mínimo de cartas por dificuldade: iniciante=1, intermediário/avançado=3
   - Boss Mode ativado automaticamente para intermediário/avançado
